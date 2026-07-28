@@ -1,0 +1,80 @@
+name: Feature request
+description: Suggest an improvement or new capability for Rhythm
+title: "feature: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea. Rhythm prioritizes playback quality, a first-party player, self-hosting, and treating music files as the source of truth.
+
+        For substantial changes, describing the problem is more useful than jumping directly to an implementation.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues for a similar request.
+          required: true
+        - label: This request does not require Rhythm to modify source music files.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or need
+      description: What are you trying to accomplish, and what prevents you from doing it today?
+      placeholder: When I ..., I need ... because ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed experience
+      description: Describe how the feature should behave from a user's perspective.
+      placeholder: A user would ...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: surfaces
+    attributes:
+      label: Relevant areas
+      description: Select every area this request may affect.
+      options:
+        - label: Web player
+        - label: Desktop app
+        - label: Server or API
+        - label: Library scanning or metadata
+        - label: Playback or audio processing
+        - label: Docker or self-hosting
+        - label: Documentation
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: How do you handle this need today, and what other approaches have you considered?
+
+  - type: textarea
+    id: audio
+    attributes:
+      label: Playback and library considerations
+      description: If relevant, describe expected audio-quality, format, metadata, performance, or compatibility behavior.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add mockups, examples from other products, links, or other useful detail.
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Would you like to work on this?
+      options:
+        - Not sure
+        - Yes, with guidance
+        - Yes, I can open a pull request
+        - No
