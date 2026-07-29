@@ -18,3 +18,10 @@ target/
 .DS_Store
 .idea/
 .vscode/
+
+# Generated: the built web client staged for go:embed
+/server/internal/webui/assets/*
+!/server/internal/webui/assets/.gitkeep
+
+# Generated: the compiled server binary
+/rhythm
