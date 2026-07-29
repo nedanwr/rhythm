@@ -1,0 +1,71 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider
+} from "@tanstack/react-router";
+import { render, waitFor } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { PlayerProvider } from "../player/PlayerProvider";
+
+/**
+ * Renders inside the providers a component really runs under: a router (so
+ * <Link> works), Query, and the player context. Retries are off so an error
+ * assertion does not wait on a backoff.
+ */
+export async function renderWithProviders(
+  ui: ReactNode,
+  options?: { initialPath?: string }
+): Promise<RenderResult & { queryClient: QueryClient }> {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } }
+  });
+
+  const rootRoute = createRootRoute({
+    component: () => (
+      <PlayerProvider>
+        <Outlet />
+      </PlayerProvider>
+    )
+  });
+  const indexRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/",
+    component: () => <>{ui}</>
+  });
+  // Mirrors the app's splat route so <Link to="/browse/$"> resolves here too.
+  const browseRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/browse/$",
+    component: () => <>{ui}</>
+  });
+
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([indexRoute, browseRoute]),
+    history: createMemoryHistory({
+      initialEntries: [options?.initialPath ?? "/"]
+    })
+  });
+
+  // The router resolves its first match asynchronously; without this we would
+  // assert against an empty container.
+  await router.load();
+
+  const result = render(
+    <QueryClientProvider client={queryClient}>
+      {/* The app registers its router type globally; this is another instance
+          of the same shape. */}
+      <RouterProvider router={router as never} />
+    </QueryClientProvider>
+  );
+  await waitFor(() => {
+    if (!result.container.firstElementChild) {
+      throw new Error("router has not rendered a route yet");
+    }
+  });
+  return { ...result, queryClient };
+}
