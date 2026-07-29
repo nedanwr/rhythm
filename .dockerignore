@@ -1,0 +1,9 @@
+.git
+.github
+**/node_modules
+web/dist
+server/internal/webui/assets/*
+!server/internal/webui/assets/.gitkeep
+/rhythm
+*.md
+!README.md
