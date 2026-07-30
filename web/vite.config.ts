@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import path from "path";
 
 // In development Vite proxies /api to a locally running `rhythm`, so client
 // code is identical whether it is served from Vite or from the Go binary.
@@ -23,5 +24,10 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"]
+  },
+  resolve: {
+    alias: {
+      "~": path.resolve(__dirname, "./src")
+    }
   }
 });
