@@ -97,3 +97,11 @@ export function fetchRoots(options?: {
 export function streamUrl(id: string): string {
   return `/api/stream/${encodeURIComponent(id)}`;
 }
+
+/** Sizes the art endpoint serves; anything else is a 400. */
+export type ArtSize = 64 | 160 | 320 | 640;
+
+/** Cover art URL. 404s when there is none, so callers need a fallback. */
+export function artUrl(id: string, size: ArtSize): string {
+  return `/api/art/${encodeURIComponent(id)}?size=${size}`;
+}
