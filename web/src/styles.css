@@ -1,205 +1,162 @@
-/* Dark, legible, deliberately plain. The real design system replaces all of
-   this; nothing here is meant to survive it. */
+@import "tailwindcss";
+/* Bundled through Vite, not fetched — no font CDN, works offline. */
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
+@custom-variant dark (&:is(.dark *));
+
+/* Design tokens. Every colour is named here and mapped into Tailwind
+   below, so nothing reaches for a raw hex. */
+@theme inline {
+  --font-sans: "Geist Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-popover: var(--popover);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-faint: var(--faint);
+  --color-main: var(--main);
+  --color-heading: var(--heading);
+  --color-row-hover: var(--row-hover);
+  --color-raised: var(--raised);
+  --color-player: var(--player);
+  --color-player-control: var(--player-control);
+  --color-progress: var(--progress);
+  --color-buffered: var(--buffered);
+
+  --shadow-lift: 0 18px 50px rgba(0, 0, 0, 0.42);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Carried by shadcn components; Rhythm's own UI mostly uses the set
+     above. Chart and sidebar-primary tokens are left out until something
+     needs them. */
+  --color-card-foreground: var(--card-foreground);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+/* Dark only for now, but under both :root and .dark so a light theme is
+   an added block rather than a refactor. */
+:root,
+.dark {
   color-scheme: dark;
-  --bg: #0f1012;
-  --surface: #17181c;
-  --border: #26282e;
-  --text: #e8e8ea;
-  --muted: #9a9aa2;
-  --accent: #6ea8ff;
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+  --background: #11100f;
+  --foreground: #e7e3dc;
+  --card: #171614;
+  --popover: #171614;
+  --primary: #e56f45;
+  --primary-foreground: #fff;
+  --muted: #24221f;
+  --muted-foreground: #938f88;
+  --accent: #211f1c;
+  --accent-foreground: #f4f0e9;
+  --border: #2b2926;
+  --ring: #e56f45;
+  /* Red enough to not read as the warm-orange primary. */
+  --destructive: #e5484d;
+  --sidebar: #11100f;
+  --sidebar-foreground: #f4f0e9;
+  --sidebar-border: rgba(43, 41, 38, 0.8);
+  --faint: #66625d;
+  --main: #131210;
+  --heading: #f3efe8;
+  --row-hover: #191816;
+  --raised: #24211e;
+  --player: #151412;
+  --player-control: #eee9e1;
+  --progress: #36332f;
+  /* Between the track and the played fill, so the two stay distinct. */
+  --buffered: #4a4640;
+
+  /* Used by shadcn components rather than by Rhythm's own UI. */
+  --card-foreground: #e7e3dc;
+  --popover-foreground: #e7e3dc;
+  --secondary: #eee9e1;
+  --secondary-foreground: #11100f;
+  --destructive-foreground: #fff;
+  --input: #35322e;
+  --radius: 8px;
 }
 
-* {
-  box-sizing: border-box;
+@layer base {
+  * {
+    border-color: var(--border);
+    box-sizing: border-box;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground m-0 font-sans antialiased;
+    overflow: hidden;
+  }
+
+  button,
+  input {
+    outline: none;
+  }
+
+  ::selection {
+    background: var(--primary);
+    color: white;
+  }
+
+  /* Mono + tabular so ticking digits don't shift the layout. */
+  .readout {
+    @apply text-muted-foreground font-mono text-[11px] tracking-wide;
+    font-variant-numeric: tabular-nums;
+  }
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-}
+@layer components {
+  .nav-item {
+    @apply text-muted-foreground hover:bg-accent hover:text-foreground flex h-[2.4rem] w-full items-center gap-3 rounded-md px-3 text-left text-sm transition-colors;
+  }
 
-.app {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
+  .nav-item.active {
+    @apply bg-accent text-accent-foreground;
+  }
 
-.app__header {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border);
-}
+  .scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 
-.app__title {
-  margin: 0;
-  font-size: 1rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.pane {
-  flex: 1;
-  padding: 1rem;
-  padding-bottom: 8rem;
-}
-
-.crumbs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-}
-
-.crumbs__group {
-  display: contents;
-}
-
-.crumbs__item {
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.crumbs__item:hover {
-  text-decoration: underline;
-}
-
-.crumbs__item--current {
-  color: var(--text);
-}
-
-.crumbs__sep {
-  color: var(--muted);
-  padding: 0 0.25rem;
-}
-
-.listing {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.listing__row + .listing__row {
-  border-top: 1px solid var(--border);
-}
-
-.listing__button {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  background: var(--surface);
-  border: 0;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.listing__button:hover,
-.listing__button:focus-visible {
-  background: #1f2026;
-}
-
-.listing__button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-.listing__icon {
-  width: 1rem;
-  color: var(--muted);
-}
-
-.listing__name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.listing__ext,
-.listing__size {
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.listing__ext {
-  text-transform: uppercase;
-}
-
-.listing__row--current .listing__name {
-  color: var(--accent);
-}
-
-.status,
-.empty,
-.player__hint {
-  color: var(--muted);
-}
-
-.status--error,
-.player__error {
-  color: #ff8f8f;
-}
-
-.retry {
-  padding: 0.4rem 0.8rem;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.player {
-  position: fixed;
-  inset: auto 0 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.75rem 1rem;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-}
-
-.player__meta {
-  display: flex;
-  gap: 0.75rem;
-  align-items: baseline;
-  min-width: 0;
-}
-
-.player__title {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.player__from {
-  color: var(--muted);
-  font-size: 0.8rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.player__audio {
-  width: 100%;
+  .scrollbar::-webkit-scrollbar-thumb {
+    border: 2px solid var(--card);
+    border-radius: 8px;
+    background: #302e2a;
+  }
 }
