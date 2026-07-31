@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/nedanwr/rhythm/server/internal/art"
 	"github.com/nedanwr/rhythm/server/internal/library"
 	"github.com/nedanwr/rhythm/server/internal/stream"
 )
@@ -19,6 +20,7 @@ type Server struct {
 	log      *slog.Logger
 	ui       fs.FS
 	uiBuilt  bool
+	art      *art.Cache
 }
 
 // Options configures a Server.
@@ -28,6 +30,9 @@ type Options struct {
 	// UI is the embedded client. When UIBuilt is false a placeholder is served.
 	UI      fs.FS
 	UIBuilt bool
+	// ArtCache stores resized cover art. Nil just means artwork 404s;
+	// missing art is drawable, an unstartable server is not.
+	ArtCache *art.Cache
 }
 
 // New builds the server's handler tree.
@@ -39,12 +44,13 @@ func New(opts Options) (http.Handler, error) {
 	if log == nil {
 		log = slog.New(slog.NewTextHandler(os.Stderr, nil))
 	}
-	s := &Server{registry: opts.Registry, log: log, ui: opts.UI, uiBuilt: opts.UIBuilt}
+	s := &Server{registry: opts.Registry, log: log, ui: opts.UI, uiBuilt: opts.UIBuilt, art: opts.ArtCache}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/roots", s.handleRoots)
 	mux.HandleFunc("GET /api/browse", s.handleBrowse)
 	mux.HandleFunc("GET /api/stream/{id}", s.handleStream)
+	mux.HandleFunc("GET /api/art/{id}", s.handleArt)
 	// Any other /api path is an API error, never the SPA shell: a wrong endpoint
 	// should return JSON, not HTML. This pattern also swallows ServeMux's own
 	// 405, so a known path with the wrong method is answered here.
@@ -68,7 +74,7 @@ func isKnownEndpoint(path string) bool {
 	case "/api/roots", "/api/browse":
 		return true
 	}
-	return strings.HasPrefix(path, "/api/stream/")
+	return strings.HasPrefix(path, "/api/stream/") || strings.HasPrefix(path, "/api/art/")
 }
 
 // RootsResponse lists the libraries and their roots.

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/nedanwr/rhythm/server/internal/api"
+	"github.com/nedanwr/rhythm/server/internal/art"
 	"github.com/nedanwr/rhythm/server/internal/library"
 	"github.com/nedanwr/rhythm/server/internal/webui"
 )
@@ -72,6 +73,8 @@ func run(args []string) error {
 		Logger:   log,
 		UI:       ui,
 		UIBuilt:  uiBuilt,
+		// Derived data — deleting it costs one re-extraction per image.
+		ArtCache: &art.Cache{Dir: filepath.Join(dataDir, "art")},
 	})
 	if err != nil {
 		return err

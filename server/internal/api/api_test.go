@@ -13,6 +13,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/nedanwr/rhythm/server/internal/art"
 	"github.com/nedanwr/rhythm/server/internal/library"
 )
 
@@ -49,7 +50,14 @@ func newTestServer(t *testing.T, uiBuilt bool) (http.Handler, *library.Root) {
 	if uiBuilt {
 		ui = testUI()
 	}
-	h, err := New(Options{Registry: reg, Logger: discardLogger(), UI: ui, UIBuilt: uiBuilt})
+	h, err := New(Options{
+		Registry: reg,
+		Logger:   discardLogger(),
+		UI:       ui,
+		UIBuilt:  uiBuilt,
+		// Outside the music root: browsing must never add files to it.
+		ArtCache: &art.Cache{Dir: t.TempDir()},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
