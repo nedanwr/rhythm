@@ -10,7 +10,39 @@ import {
 import { render, waitFor } from "@testing-library/react";
 import type { RenderResult } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { PlayerProvider } from "../player/PlayerProvider";
+import { PlayerProvider } from "~/features/player/PlayerProvider";
+import { routeTree } from "~/routes/router";
+
+/**
+ * Mounts the real route tree — shell, sidebar, player bar and routing.
+ * Use `renderWithProviders` instead for a single component.
+ */
+export async function renderApp(options?: {
+  initialPath?: string;
+}): Promise<RenderResult & { queryClient: QueryClient }> {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } }
+  });
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({
+      initialEntries: [options?.initialPath ?? "/"]
+    })
+  });
+  await router.load();
+
+  const result = render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router as never} />
+    </QueryClientProvider>
+  );
+  await waitFor(() => {
+    if (!result.container.firstElementChild) {
+      throw new Error("router has not rendered a route yet");
+    }
+  });
+  return { ...result, queryClient };
+}
 
 /**
  * Renders inside the providers a component really runs under: a router (so
