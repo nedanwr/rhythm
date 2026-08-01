@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 
 import { cn } from "~/lib/utils";
@@ -57,16 +58,43 @@ function SliderIndicator({
   );
 }
 
-function SliderThumb({ className, ...props }: SliderPrimitive.Thumb.Props) {
+function SliderThumb({
+  className,
+  onFocus,
+  onBlur,
+  ...props
+}: SliderPrimitive.Thumb.Props) {
+  // Base UI pointer-focuses a nested range input, which Chrome may still
+  // match as :focus-visible. Track pointer input to expose keyboard focus only.
+  const [focusVisible, setFocusVisible] = useState(false);
+  const lastPointerDown = useRef(0);
+
+  useEffect(() => {
+    const onPointerDown = () => {
+      lastPointerDown.current = performance.now();
+    };
+    window.addEventListener("pointerdown", onPointerDown, true);
+    return () => window.removeEventListener("pointerdown", onPointerDown, true);
+  }, []);
+
   return (
     <SliderPrimitive.Thumb
       data-slot="slider-thumb"
+      // Focus from Base UI's nested range input bubbles to the thumb.
+      onFocus={(event) => {
+        const fromPointer = performance.now() - lastPointerDown.current < 300;
+        setFocusVisible(!fromPointer && event.target.matches(":focus-visible"));
+        onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        setFocusVisible(false);
+        onBlur?.(event);
+      }}
+      data-focus-visible={focusVisible || undefined}
       className={cn(
         "bg-primary relative block size-2.75 shrink-0 rounded-full opacity-0 shadow-sm transition-opacity select-none",
-        // Quiet at rest; pointing at the slider, tabbing to it or dragging it
-        // brings the handle back.
-        "group-hover:opacity-100 has-focus-visible:opacity-100 data-dragging:opacity-100",
-        // Widen the hit target past the dot for touch.
+        "group-hover:opacity-100 data-dragging:opacity-100 data-focus-visible:opacity-100",
+        // Increase the touch target without changing the visible thumb size.
         "after:absolute after:-inset-2",
         "data-disabled:pointer-events-none data-disabled:opacity-0",
         className
