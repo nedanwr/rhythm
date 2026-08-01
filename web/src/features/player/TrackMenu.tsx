@@ -2,13 +2,13 @@ import { Menu } from "@base-ui/react/menu";
 import { Ellipsis, ListEnd, ListPlus } from "lucide-react";
 
 import type { Track } from "~/api/schemas";
-import { usePlayer } from "./PlayerProvider";
+import { usePlayerActions } from "./context";
 
 const itemClass =
   "flex h-8 cursor-default select-none items-center gap-2.5 rounded-sm px-2 text-[13px] text-muted-foreground outline-none data-[highlighted]:bg-accent data-[highlighted]:text-foreground [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-faint data-[highlighted]:[&_svg]:text-foreground";
 
 export function TrackMenu({ track }: { track: Track }) {
-  const { playNext, addToQueue } = usePlayer();
+  const { playNext, addToQueue } = usePlayerActions();
 
   return (
     <Menu.Root>

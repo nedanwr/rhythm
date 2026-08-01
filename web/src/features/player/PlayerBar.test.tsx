@@ -1,12 +1,31 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import type { Entry } from "~/api/schemas";
+import { FakeEngine } from "~/engine/testing/fakeEngine";
 import { DirectoryList } from "~/features/browse/DirectoryList";
 import { PlayerBar } from "./PlayerBar";
 import { renderWithProviders } from "~/test/render";
-import { MEDIA_ERR } from "./PlayerProvider";
+
+const flac: Entry[] = [
+  {
+    name: "01 Track.flac",
+    path: "01 Track.flac",
+    isDir: false,
+    id: "default:MDEgVHJhY2suZmxhYw",
+    ext: "flac",
+    size: 100
+  },
+  {
+    name: "02 Track.flac",
+    path: "02 Track.flac",
+    isDir: false,
+    id: "default:MDIgVHJhY2suZmxhYw",
+    ext: "flac",
+    size: 100
+  }
+];
 
 const undecodable: Entry[] = [
   {
@@ -19,25 +38,16 @@ const undecodable: Entry[] = [
   }
 ];
 
-const flac: Entry[] = [
-  {
-    name: "01 Track.flac",
-    path: "01 Track.flac",
-    isDir: false,
-    id: "default:MDEgVHJhY2suZmxhYw",
-    ext: "flac",
-    size: 100
-  }
-];
-
-function loadMetadata(seconds: number) {
-  const audio = document.querySelector("audio") as HTMLAudioElement;
-  Object.defineProperty(audio, "duration", {
-    configurable: true,
-    value: seconds
-  });
-  fireEvent.loadedMetadata(audio);
-  return audio;
+async function renderBar(entries: Entry[], engine = new FakeEngine()) {
+  const user = userEvent.setup();
+  await renderWithProviders(
+    <>
+      <DirectoryList entries={entries} path="" />
+      <PlayerBar onToggleQueue={() => {}} />
+    </>,
+    { engine }
+  );
+  return { user, engine };
 }
 
 describe("PlayerBar", () => {
@@ -52,112 +62,103 @@ describe("PlayerBar", () => {
     ).toBeDisabled();
   });
 
-  it("reports a decode failure to the listener", async () => {
-    const user = userEvent.setup();
-    await renderWithProviders(
-      <>
-        <DirectoryList entries={undecodable} path="" />
-        <PlayerBar onToggleQueue={() => {}} />
-      </>
-    );
+  it("reports a playback failure to the listener", async () => {
+    const engine = new FakeEngine();
+    engine.deferLoads = true;
+    engine.failNextLoad = {
+      kind: "unsupported",
+      message:
+        "“atmos.m4a” could not be decoded. MPEG-4 audio files can hold " +
+        "several codecs, and this one needs a decoder Rhythm does not have yet.",
+      trackId: "default:YXRtb3MubTRh"
+    };
+    const { user } = await renderBar(undecodable, engine);
     await user.click(screen.getByRole("button", { name: "atmos.m4a" }));
-
-    const audio = document.querySelector("audio") as HTMLAudioElement;
-    expect(audio).not.toBeNull();
-    Object.defineProperty(audio, "error", {
-      configurable: true,
-      value: { code: MEDIA_ERR.SRC_NOT_SUPPORTED }
-    });
-    fireEvent.error(audio);
+    act(() => engine.settleLoad());
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/atmos\.m4a/i);
-    expect(alert).toHaveTextContent(/damaged/i);
-  });
-
-  it("reflects play and pause coming from the element", async () => {
-    const user = userEvent.setup();
-    await renderWithProviders(
-      <>
-        <DirectoryList entries={flac} path="" />
-        <PlayerBar onToggleQueue={() => {}} />
-      </>
-    );
-    await user.click(screen.getByRole("button", { name: "01 Track.flac" }));
-    const audio = document.querySelector("audio") as HTMLAudioElement;
-
-    fireEvent.play(audio);
-    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
-
-    fireEvent.pause(audio);
+    expect(alert).toHaveTextContent(/several codecs/i);
     expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
   });
 
-  it("shows the duration once metadata arrives and seeks to a position", async () => {
-    const user = userEvent.setup();
-    await renderWithProviders(
-      <>
-        <DirectoryList entries={flac} path="" />
-        <PlayerBar onToggleQueue={() => {}} />
-      </>
-    );
+  it("shows pause while playing and play while paused", async () => {
+    const { user, engine } = await renderBar(flac);
+    await user.click(screen.getByRole("button", { name: "01 Track.flac" }));
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+
+    act(() => engine.pause());
+    expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
+  });
+
+  it("offers pause, not play, while a track is still loading", async () => {
+    const engine = new FakeEngine();
+    engine.deferLoads = true;
+    const { user } = await renderBar(flac, engine);
     await user.click(screen.getByRole("button", { name: "01 Track.flac" }));
 
+    const button = screen.getByRole("button", { name: "Pause" });
+    expect(button).toBeEnabled();
+    await user.click(button);
+    expect(engine.pauseCalls).toBe(1);
+  });
+
+  it("shows the duration the engine reports and seeks to a position", async () => {
+    const engine = new FakeEngine();
+    engine.deferLoads = true;
+    engine.loadDuration = 200;
+    const { user } = await renderBar(flac, engine);
+
+    await user.click(screen.getByRole("button", { name: "01 Track.flac" }));
     expect(screen.getAllByText("—:—").length).toBeGreaterThan(0);
 
-    const audio = loadMetadata(200);
+    act(() => engine.settleLoad());
     expect(await screen.findByText("3:20")).toBeInTheDocument();
 
     const seek = screen.getByRole("slider", { name: "Seek" });
     expect(seek).toHaveAttribute("max", "200");
     fireEvent.change(seek, { target: { value: "50" } });
     fireEvent.blur(seek);
-    expect(audio.currentTime).toBe(50);
+    expect(engine.seeks).toContain(50);
   });
 
-  it("changes volume on the element", async () => {
-    await renderWithProviders(<PlayerBar onToggleQueue={() => {}} />);
-    const audio = document.querySelector("audio") as HTMLAudioElement;
+  it("changes the engine's volume", async () => {
+    const engine = new FakeEngine();
+    await renderWithProviders(<PlayerBar onToggleQueue={() => {}} />, {
+      engine
+    });
     const volume = screen.getByRole("slider", { name: "Volume" });
-
     fireEvent.change(volume, { target: { value: "0.25" } });
-    expect(audio.volume).toBeCloseTo(0.25);
+    expect(engine.getSnapshot().volume).toBeCloseTo(0.25);
   });
 
-  it("advances on ended and stops at the end of the queue", async () => {
-    const user = userEvent.setup();
-    const two: Entry[] = [
-      ...flac,
-      {
-        name: "02 Track.flac",
-        path: "02 Track.flac",
-        isDir: false,
-        id: "default:MDIgVHJhY2suZmxhYw",
-        ext: "flac",
-        size: 100
-      }
-    ];
-    await renderWithProviders(
-      <>
-        <DirectoryList entries={two} path="" />
-        <PlayerBar onToggleQueue={() => {}} />
-      </>
-    );
+  it("skips forward and stops offering it at the end of the queue", async () => {
+    const { user, engine } = await renderBar(flac);
     await user.click(screen.getByRole("button", { name: "01 Track.flac" }));
-    const audio = document.querySelector("audio") as HTMLAudioElement;
 
-    fireEvent.ended(audio);
-    await waitFor(() =>
-      expect(audio).toHaveAttribute(
-        "src",
-        "/api/stream/default%3AMDIgVHJhY2suZmxhYw"
-      )
+    const skip = screen.getByRole("button", { name: "Next track" });
+    expect(skip).toBeEnabled();
+    await user.click(skip);
+    expect(engine.loads.map((l) => l.track.id)).toEqual([
+      "default:MDEgVHJhY2suZmxhYw",
+      "default:MDIgVHJhY2suZmxhYw"
+    ]);
+    expect(screen.getByRole("button", { name: "Next track" })).toBeDisabled();
+  });
+
+  it("follows a gapless advance the engine made on its own", async () => {
+    const { user, engine } = await renderBar(flac);
+    await user.click(screen.getByRole("button", { name: "01 Track.flac" }));
+
+    act(() =>
+      engine.advanceTo({
+        id: "default:MDIgVHJhY2suZmxhYw",
+        name: "02 Track.flac"
+      })
     );
 
-    fireEvent.ended(audio);
-    expect(audio).toHaveAttribute(
-      "src",
-      "/api/stream/default%3AMDIgVHJhY2suZmxhYw"
-    );
+    const footer = screen.getByRole("contentinfo");
+    expect(within(footer).getByText("02 Track.flac")).toBeInTheDocument();
+    expect(engine.loads).toHaveLength(1);
   });
 });

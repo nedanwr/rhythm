@@ -5,7 +5,13 @@ import type { Entry, Track } from "~/api/schemas";
 import { isTrack } from "~/api/schemas";
 import { formatSize } from "~/lib/format";
 import { cn } from "~/lib/utils";
-import { usePlayer } from "~/features/player/PlayerProvider";
+import {
+  selectStatus,
+  useEngineState,
+  usePlayerActions,
+  useQueue
+} from "~/features/player/context";
+import { selectCurrent } from "~/stores/queueStore";
 import { CoverArt } from "~/components/CoverArt";
 import { TrackMenu } from "~/features/player/TrackMenu";
 
@@ -16,7 +22,9 @@ export function DirectoryList({
   entries: Entry[];
   path: string;
 }) {
-  const { current, status, play } = usePlayer();
+  const current = useQueue(selectCurrent);
+  const status = useEngineState(selectStatus);
+  const { play } = usePlayerActions();
 
   const folders = entries.filter((entry) => entry.isDir);
   const tracks = entries.filter(isTrack);

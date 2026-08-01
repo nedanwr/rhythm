@@ -1,389 +1,201 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useStore } from "zustand";
 
 import { streamUrl } from "~/api/client";
 import type { Track } from "~/api/schemas";
+import * as queue from "~/engine/queue";
+import type { EngineTrack, RhythmEngine } from "~/engine/types";
+import { WebAudioEngine } from "~/engine/webAudioEngine";
+import {
+  createQueueStore,
+  selectCurrent,
+  selectCurrentId,
+  selectHasNext,
+  selectUpcomingId,
+  type QueueStore
+} from "~/stores/queueStore";
+import {
+  ActionsContext,
+  EngineContext,
+  QueueStoreContext,
+  selectDuration,
+  selectStatus,
+  useEngine,
+  useEngineState,
+  usePlayerActions,
+  useQueue,
+  type PlayerActions
+} from "./context";
+import { useKeyboardControls } from "./useKeyboardControls";
+import { useMediaSession } from "./useMediaSession";
 
-export type PlayerStatus = "idle" | "playing" | "paused";
+/** Owns the engine and queue store and coordinates their state. */
 
-export interface PlayerState {
-  queue: readonly Track[];
-  index: number;
-  current: Track | null;
-  /** Folder the queue was played from. */
-  currentPath: string | null;
-  status: PlayerStatus;
-  /** Seconds, or 0 until metadata loads. */
-  duration: number;
-  volume: number;
-  error: string | null;
-
-  /** Replaces the queue, starting at `startIndex`. */
-  play: (
-    tracks: readonly Track[],
-    startIndex: number,
-    fromPath: string
-  ) => void;
-  /** Plays an existing queue entry. */
-  playAt: (index: number) => void;
-  toggle: () => void;
-  next: () => void;
-  previous: () => void;
-  seek: (seconds: number) => void;
-  setVolume: (volume: number) => void;
-  /** Queues a track directly after the current one. */
-  playNext: (track: Track) => void;
-  /** Appends to the end of the queue. */
-  addToQueue: (track: Track) => void;
-  removeAt: (index: number) => void;
-  reorder: (from: number, to: number) => void;
-  clearQueue: () => void;
-
-  /** Current position in seconds, read directly from the audio element. */
-  getPosition: () => number;
-  /** End of the buffered range containing the playhead, in seconds. */
-  getBuffered: () => number;
-}
-
-const PlayerContext = createContext<PlayerState | null>(null);
-
-// jsdom does not define the MediaError global.
-export const MEDIA_ERR = {
-  ABORTED: 1,
-  NETWORK: 2,
-  DECODE: 3,
-  SRC_NOT_SUPPORTED: 4
-} as const;
-
-// Chrome uses SRC_NOT_SUPPORTED for unsupported codecs and corrupt files.
-export function playbackErrorMessage(
-  code: number | undefined,
-  name?: string,
-  ext?: string
-): string {
-  const subject = name ? `“${name}”` : "this track";
-  switch (code) {
-    case MEDIA_ERR.NETWORK:
-      return `Lost the connection to the Rhythm server while playing ${subject}.`;
-    case MEDIA_ERR.DECODE:
-      return `${subject} could not be decoded. The file may be damaged.`;
-    default:
-      return (
-        `Rhythm could not play ${subject}. The file may be damaged, or ` +
-        `${ext ? `.${ext}` : "its format"} may need a decoder that arrives with the audio engine.`
-      );
-  }
-}
-
-// Previous restarts after this point instead of selecting the prior track.
+/** Restart the current track rather than stepping back after this point. */
 const RESTART_THRESHOLD_SECONDS = 3;
+const SEEK_STEP_SECONDS = 5;
 
-export function PlayerProvider({ children }: { children: ReactNode }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [queue, setQueue] = useState<readonly Track[]>([]);
-  const [index, setIndex] = useState(-1);
-  const [currentPath, setCurrentPath] = useState<string | null>(null);
-  const [status, setStatus] = useState<PlayerStatus>("idle");
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolumeState] = useState(1);
-  const [error, setError] = useState<string | null>(null);
+function toEngineTrack(track: Track): EngineTrack {
+  return { id: track.id, name: track.name, ext: track.ext };
+}
 
-  const current = index >= 0 ? (queue[index] ?? null) : null;
-  const src = current ? streamUrl(current.id) : null;
-
-  // Event listeners are registered once and need the latest queue state.
-  // Related updates stay outside state updaters, which React may invoke twice.
-  const queueRef = useRef(queue);
-  const indexRef = useRef(index);
-  const currentRef = useRef(current);
-  queueRef.current = queue;
-  indexRef.current = index;
-  currentRef.current = current;
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    setError(null);
-    setDuration(0);
-    if (!src) {
-      audio.removeAttribute("src");
-      audio.load();
-      setStatus("idle");
-      return;
-    }
-    audio.src = src;
-    audio.load();
-    void audio.play().catch(() => {
-      // Autoplay blocks and interrupted loads reject play(). Decode failures
-      // are handled by the error event.
-    });
-  }, [src]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const onPlay = () => setStatus("playing");
-    const onPause = () => {
-      // The ended event also emits pause.
-      if (!audio.ended) setStatus("paused");
-    };
-    const onLoadedMetadata = () => {
-      setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
-    };
-    const onEnded = () => {
-      const nextIndex = indexRef.current + 1;
-      if (indexRef.current < 0 || nextIndex >= queueRef.current.length) {
-        setStatus("idle");
-        return;
-      }
-      setIndex(nextIndex);
-    };
-    const onError = () => {
-      const track = currentRef.current;
-      const code = audio.error?.code;
-      // Replacing the source can abort the previous load.
-      if (code === MEDIA_ERR.ABORTED) return;
-      setError(playbackErrorMessage(code, track?.name, track?.ext));
-      setStatus("paused");
-    };
-
-    audio.addEventListener("play", onPlay);
-    audio.addEventListener("pause", onPause);
-    audio.addEventListener("loadedmetadata", onLoadedMetadata);
-    audio.addEventListener("ended", onEnded);
-    audio.addEventListener("error", onError);
-    return () => {
-      audio.removeEventListener("play", onPlay);
-      audio.removeEventListener("pause", onPause);
-      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
-      audio.removeEventListener("ended", onEnded);
-      audio.removeEventListener("error", onError);
-    };
-  }, []);
-
-  const play = useCallback(
-    (tracks: readonly Track[], startIndex: number, fromPath: string) => {
-      if (tracks.length === 0) return;
-      setQueue([...tracks]);
-      setCurrentPath(fromPath);
-      setIndex(Math.min(Math.max(startIndex, 0), tracks.length - 1));
-    },
-    []
+export function PlayerProvider({
+  children,
+  engine: injected,
+  store: injectedStore
+}: {
+  children: ReactNode;
+  /** Test seam: supply a fake engine instead of the Web Audio one. */
+  engine?: RhythmEngine;
+  /** Test seam: supply a pre-seeded store. */
+  store?: QueueStore;
+}) {
+  const createEngine = useCallback(
+    (): RhythmEngine => injected ?? new WebAudioEngine({ streamUrl }),
+    [injected]
   );
 
-  const playAt = useCallback((target: number) => {
-    if (target < 0 || target >= queueRef.current.length) return;
-    setIndex(target);
-  }, []);
+  // StrictMode replays effect cleanup on the same mount. State lets cleanup
+  // replace the disposed engine before effects are set up again.
+  const [engine, setEngine] = useState<RhythmEngine>(createEngine);
 
-  const toggle = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio || !currentRef.current) return;
-    if (audio.paused) {
-      void audio.play().catch(() => {});
-    } else {
-      audio.pause();
-    }
-  }, []);
+  useEffect(() => {
+    return () => {
+      void engine.dispose();
+      setEngine((live) => (live === engine ? createEngine() : live));
+    };
+  }, [engine, createEngine]);
 
-  const next = useCallback(() => {
-    const nextIndex = indexRef.current + 1;
-    if (indexRef.current < 0 || nextIndex >= queueRef.current.length) return;
-    setIndex(nextIndex);
-  }, []);
-
-  const previous = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio && audio.currentTime > RESTART_THRESHOLD_SECONDS) {
-      audio.currentTime = 0;
-      return;
-    }
-    if (indexRef.current > 0) setIndex(indexRef.current - 1);
-    else if (audio) audio.currentTime = 0;
-  }, []);
-
-  const seek = useCallback((seconds: number) => {
-    const audio = audioRef.current;
-    if (!audio || !Number.isFinite(seconds)) return;
-    const limit = Number.isFinite(audio.duration) ? audio.duration : 0;
-    audio.currentTime = Math.min(Math.max(seconds, 0), limit);
-  }, []);
-
-  const setVolume = useCallback((next: number) => {
-    if (!Number.isFinite(next)) return;
-    const clamped = Math.min(Math.max(next, 0), 1);
-    const audio = audioRef.current;
-    if (audio) audio.volume = clamped;
-    setVolumeState(clamped);
-  }, []);
-
-  const playNext = useCallback((track: Track) => {
-    const existing = queueRef.current;
-    if (existing.length === 0 || indexRef.current < 0) {
-      setQueue([track]);
-      setIndex(0);
-      return;
-    }
-    const copy = [...existing];
-    copy.splice(indexRef.current + 1, 0, track);
-    setQueue(copy);
-  }, []);
-
-  const addToQueue = useCallback((track: Track) => {
-    const existing = queueRef.current;
-    if (existing.length === 0 || indexRef.current < 0) {
-      setQueue([track]);
-      setIndex(0);
-      return;
-    }
-    setQueue([...existing, track]);
-  }, []);
-
-  const removeAt = useCallback((target: number) => {
-    const existing = queueRef.current;
-    if (target < 0 || target >= existing.length) return;
-    const copy = [...existing];
-    copy.splice(target, 1);
-    const currentIndex = indexRef.current;
-
-    // Preserve the current track when removal shifts queue indices.
-    let nextIndex = currentIndex;
-    if (copy.length === 0) {
-      nextIndex = -1;
-    } else if (target < currentIndex) {
-      nextIndex = currentIndex - 1;
-    } else if (target === currentIndex) {
-      nextIndex = Math.min(currentIndex, copy.length - 1);
-    }
-    setQueue(copy);
-    setIndex(nextIndex);
-    if (nextIndex === -1) setCurrentPath(null);
-  }, []);
-
-  const reorder = useCallback((from: number, to: number) => {
-    const existing = queueRef.current;
-    if (
-      from === to ||
-      from < 0 ||
-      to < 0 ||
-      from >= existing.length ||
-      to >= existing.length
-    ) {
-      return;
-    }
-    const copy = [...existing];
-    const [moved] = copy.splice(from, 1);
-    if (moved === undefined) return;
-    copy.splice(to, 0, moved);
-
-    // Preserve the current track when reordering shifts queue indices.
-    const currentIndex = indexRef.current;
-    let nextIndex = currentIndex;
-    if (currentIndex === from) nextIndex = to;
-    else if (from < currentIndex && to >= currentIndex)
-      nextIndex = currentIndex - 1;
-    else if (from > currentIndex && to <= currentIndex)
-      nextIndex = currentIndex + 1;
-
-    setQueue(copy);
-    setIndex(nextIndex);
-  }, []);
-
-  const clearQueue = useCallback(() => {
-    setQueue([]);
-    setIndex(-1);
-    setCurrentPath(null);
-  }, []);
-
-  const getPosition = useCallback(() => audioRef.current?.currentTime ?? 0, []);
-
-  const getBuffered = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return 0;
-    const ranges = audio.buffered;
-    // Earlier buffered ranges can remain after seeking.
-    const position = audio.currentTime;
-    for (let i = 0; i < ranges.length; i += 1) {
-      if (ranges.start(i) <= position + 0.5 && ranges.end(i) >= position) {
-        return ranges.end(i);
-      }
-    }
-    return 0;
-  }, []);
-
-  const value = useMemo<PlayerState>(
-    () => ({
-      queue,
-      index,
-      current,
-      currentPath,
-      status,
-      duration,
-      volume,
-      error,
-      play,
-      playAt,
-      toggle,
-      next,
-      previous,
-      seek,
-      setVolume,
-      playNext,
-      addToQueue,
-      removeAt,
-      reorder,
-      clearQueue,
-      getPosition,
-      getBuffered
-    }),
-    [
-      queue,
-      index,
-      current,
-      currentPath,
-      status,
-      duration,
-      volume,
-      error,
-      play,
-      playAt,
-      toggle,
-      next,
-      previous,
-      seek,
-      setVolume,
-      playNext,
-      addToQueue,
-      removeAt,
-      reorder,
-      clearQueue,
-      getPosition,
-      getBuffered
-    ]
+  // Each provider owns its queue to prevent cross-player state leakage.
+  const [store] = useState<QueueStore>(
+    () => injectedStore ?? createQueueStore()
   );
 
   return (
-    <PlayerContext.Provider value={value}>
-      {children}
-      {/* Keep audio mounted independently of the player controls. */}
-      <audio ref={audioRef} preload="auto" hidden data-testid="player-audio" />
-    </PlayerContext.Provider>
+    <EngineContext.Provider value={engine}>
+      <QueueStoreContext.Provider value={store}>
+        <PlayerWiring engine={engine} store={store}>
+          {children}
+        </PlayerWiring>
+      </QueueStoreContext.Provider>
+    </EngineContext.Provider>
   );
 }
 
-export function usePlayer(): PlayerState {
-  const context = useContext(PlayerContext);
-  if (!context) {
-    throw new Error("usePlayer must be used inside a PlayerProvider");
-  }
-  return context;
+/** Isolates coordination subscriptions from the child application tree. */
+function PlayerWiring({
+  children,
+  engine,
+  store
+}: {
+  children: ReactNode;
+  engine: RhythmEngine;
+  store: QueueStore;
+}) {
+  const actions = useMemo<PlayerActions>(() => {
+    const state = () => store.getState();
+    return {
+      play: (tracks, startIndex, fromPath) =>
+        state().play(tracks, startIndex, fromPath),
+      playAt: (index) => state().playAt(index),
+      toggle: () => {
+        const status = engine.getSnapshot().status;
+        if (status === "playing" || status === "loading") engine.pause();
+        else void engine.play();
+      },
+      next: () => state().next(),
+      previous: () => {
+        if (engine.getPosition() > RESTART_THRESHOLD_SECONDS) {
+          engine.seek(0);
+          return;
+        }
+        if (queue.hasPrevious(state())) state().previous();
+        else engine.seek(0);
+      },
+      seek: (seconds) => engine.seek(seconds),
+      setVolume: (volume) => engine.setVolume(volume),
+      setCrossfade: (seconds) => engine.setCrossfade(seconds),
+      playNext: (track) => state().insertNext(track),
+      addToQueue: (track) => state().append(track),
+      removeAt: (index) => state().removeAt(index),
+      reorder: (from, to) => state().reorder(from, to),
+      clearQueue: () => state().clear(),
+      getPosition: () => engine.getPosition(),
+      getBuffered: () => engine.getLoaded()
+    };
+  }, [engine, store]);
+
+  // Id-only subscriptions avoid reloads when queue edits preserve the tracks.
+  const currentId = useStore(store, selectCurrentId);
+  const upcomingId = useStore(store, selectUpcomingId);
+
+  // Do not reload a successor that the engine has already started gaplessly.
+  useEffect(() => {
+    const track = queue.current(store.getState());
+    if (!track) {
+      engine.stop();
+      return;
+    }
+    if (engine.getSnapshot().trackId === track.id) return;
+    void engine.load(toEngineTrack(track));
+  }, [engine, store, currentId]);
+
+  useEffect(() => {
+    const upcoming = queue.peekNext(store.getState());
+    engine.setNext(upcoming ? toEngineTrack(upcoming) : null);
+  }, [engine, store, upcomingId]);
+
+  useEffect(() => {
+    return engine.on("advanced", (trackId) =>
+      store.getState().advanceTo(trackId)
+    );
+  }, [engine, store]);
+
+  // Fall back to a normal load when the successor was not ready at the boundary.
+  useEffect(() => {
+    return engine.on("ended", () => store.getState().advanceIfPossible());
+  }, [engine, store]);
+
+  return (
+    <ActionsContext.Provider value={actions}>
+      <PlayerIntegrations />
+      {children}
+    </ActionsContext.Provider>
+  );
+}
+
+/** Isolates keyboard and MediaSession subscriptions from the application tree. */
+function PlayerIntegrations() {
+  const engine = useEngine();
+  const actions = usePlayerActions();
+  const current = useQueue(selectCurrent);
+  const hasNext = useQueue(selectHasNext);
+  const status = useEngineState(selectStatus);
+  const duration = useEngineState(selectDuration);
+
+  useMediaSession({
+    track: current,
+    status,
+    duration,
+    hasNext,
+    hasPrevious: current !== null,
+    getPosition: actions.getPosition,
+    onPlay: () => void engine.play(),
+    onPause: () => engine.pause(),
+    onNext: actions.next,
+    onPrevious: actions.previous,
+    onSeek: actions.seek
+  });
+
+  useKeyboardControls({
+    enabled: current !== null,
+    onToggle: actions.toggle,
+    onSeekBy: (delta) => engine.seek(engine.getPosition() + delta),
+    onVolumeBy: (delta) =>
+      engine.setVolume(engine.getSnapshot().volume + delta),
+    seekStep: SEEK_STEP_SECONDS
+  });
+
+  return null;
 }

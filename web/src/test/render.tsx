@@ -11,7 +11,14 @@ import { render, waitFor } from "@testing-library/react";
 import type { RenderResult } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { PlayerProvider } from "~/features/player/PlayerProvider";
+import type { RhythmEngine } from "~/engine/types";
+import { FakeEngine } from "~/engine/testing/fakeEngine";
 import { routeTree } from "~/routes/router";
+
+/** Optional engine override for component renders. */
+export interface EngineOption {
+  engine?: RhythmEngine;
+}
 
 /**
  * Mounts the real route tree — shell, sidebar, player bar and routing.
@@ -51,15 +58,16 @@ export async function renderApp(options?: {
  */
 export async function renderWithProviders(
   ui: ReactNode,
-  options?: { initialPath?: string }
-): Promise<RenderResult & { queryClient: QueryClient }> {
+  options?: { initialPath?: string } & EngineOption
+): Promise<RenderResult & { queryClient: QueryClient; engine: RhythmEngine }> {
+  const engine = options?.engine ?? new FakeEngine();
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } }
   });
 
   const rootRoute = createRootRoute({
     component: () => (
-      <PlayerProvider>
+      <PlayerProvider engine={engine}>
         <Outlet />
       </PlayerProvider>
     )
@@ -99,5 +107,5 @@ export async function renderWithProviders(
       throw new Error("router has not rendered a route yet");
     }
   });
-  return { ...result, queryClient };
+  return { ...result, queryClient, engine };
 }

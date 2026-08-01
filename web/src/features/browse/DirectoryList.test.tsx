@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { Entry } from "~/api/schemas";
 import { DirectoryList } from "./DirectoryList";
 import { PlayerBar } from "~/features/player/PlayerBar";
+import { FakeEngine } from "~/engine/testing/fakeEngine";
 import { renderWithProviders } from "~/test/render";
 
 const entries: Entry[] = [
@@ -47,20 +48,20 @@ describe("DirectoryList", () => {
 
   it("plays the clicked track through the player", async () => {
     const user = userEvent.setup();
+    const engine = new FakeEngine();
     await renderWithProviders(
       <>
         <DirectoryList entries={entries} path="Artist" />
         <PlayerBar onToggleQueue={() => {}} />
-      </>
+      </>,
+      { engine }
     );
 
     expect(screen.getByText(/Choose a track to begin/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "01 Track.flac" }));
 
-    const audio = document.querySelector("audio");
-    expect(audio).toHaveAttribute(
-      "src",
-      "/api/stream/default%3AQXJ0aXN0LzAxIFRyYWNrLmZsYWM"
+    expect(engine.loads.at(-1)?.track.id).toBe(
+      "default:QXJ0aXN0LzAxIFRyYWNrLmZsYWM"
     );
     const rows = screen.getAllByRole("listitem");
     const current = rows.find(
@@ -74,21 +75,25 @@ describe("DirectoryList", () => {
 
   it("queues the rest of the folder from the clicked track", async () => {
     const user = userEvent.setup();
+    const engine = new FakeEngine();
     await renderWithProviders(
       <>
         <DirectoryList entries={entries} path="Artist" />
         <PlayerBar onToggleQueue={() => {}} />
-      </>
+      </>,
+      { engine }
     );
 
     await user.click(screen.getByRole("button", { name: "01 Track.flac" }));
+    expect(engine.nextCalls.at(-1)?.id).toBe(
+      "default:QXJ0aXN0LzAyIFRyYWNrLmZsYWM"
+    );
     const nextButton = screen.getByRole("button", { name: "Next track" });
     expect(nextButton).toBeEnabled();
 
     await user.click(nextButton);
-    expect(document.querySelector("audio")).toHaveAttribute(
-      "src",
-      "/api/stream/default%3AQXJ0aXN0LzAyIFRyYWNrLmZsYWM"
+    expect(engine.loads.at(-1)?.track.id).toBe(
+      "default:QXJ0aXN0LzAyIFRyYWNrLmZsYWM"
     );
     expect(screen.getByRole("button", { name: "Next track" })).toBeDisabled();
   });

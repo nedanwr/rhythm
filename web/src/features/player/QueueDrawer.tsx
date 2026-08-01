@@ -3,7 +3,8 @@ import { GripVertical, X } from "lucide-react";
 
 import { Count } from "~/lib/format";
 import { cn } from "~/lib/utils";
-import { usePlayer } from "./PlayerProvider";
+import { usePlayerActions, useQueue } from "./context";
+import { selectIndex, selectItems } from "~/stores/queueStore";
 import { CoverArt } from "~/components/CoverArt";
 import { Button } from "~/components/ui/button";
 import {
@@ -25,7 +26,9 @@ export function QueueDrawer({
   /** Limits the drawer to a pane instead of the viewport. */
   container?: RefObject<HTMLElement | null>;
 }) {
-  const { queue, index, playAt, removeAt, reorder, clearQueue } = usePlayer();
+  const queue = useQueue(selectItems);
+  const index = useQueue(selectIndex);
+  const { playAt, removeAt, reorder, clearQueue } = usePlayerActions();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
 

@@ -6,6 +6,7 @@ import type { Entry } from "~/api/schemas";
 import { DirectoryList } from "~/features/browse/DirectoryList";
 import { PlayerBar } from "./PlayerBar";
 import { QueueDrawer } from "./QueueDrawer";
+import { FakeEngine } from "~/engine/testing/fakeEngine";
 import { renderWithProviders } from "~/test/render";
 
 const entries: Entry[] = ["A", "B", "C"].map((name, i) => ({
@@ -19,14 +20,16 @@ const entries: Entry[] = ["A", "B", "C"].map((name, i) => ({
 
 async function renderQueue() {
   const user = userEvent.setup();
+  const engine = new FakeEngine();
   await renderWithProviders(
     <>
       <DirectoryList entries={entries} path="Artist" />
       <QueueDrawer open onClose={() => {}} />
       <PlayerBar onToggleQueue={() => {}} />
-    </>
+    </>,
+    { engine }
   );
-  return user;
+  return { user, engine };
 }
 
 function queueRows() {
@@ -43,7 +46,7 @@ describe("QueueDrawer", () => {
   });
 
   it("lists the queue and marks what is playing", async () => {
-    const user = await renderQueue();
+    const { user } = await renderQueue();
     await user.click(screen.getByRole("button", { name: "A.flac" }));
 
     const rows = queueRows();
@@ -57,7 +60,7 @@ describe("QueueDrawer", () => {
   });
 
   it("plays a queue entry when its row is clicked", async () => {
-    const user = await renderQueue();
+    const { user, engine } = await renderQueue();
     await user.click(screen.getByRole("button", { name: "A.flac" }));
 
     const rows = queueRows();
@@ -67,16 +70,13 @@ describe("QueueDrawer", () => {
       })
     );
 
-    expect(document.querySelector("audio")).toHaveAttribute(
-      "src",
-      "/api/stream/default%3Atrack-2"
-    );
+    expect(engine.loads.at(-1)?.track.id).toBe("default:track-2");
   });
 
   it("reorders without disturbing the current track", async () => {
-    const user = await renderQueue();
+    const { user, engine } = await renderQueue();
     await user.click(screen.getByRole("button", { name: "B.flac" }));
-    const src = document.querySelector("audio")?.getAttribute("src");
+    const loadsBefore = engine.loads.length;
 
     await user.click(screen.getByRole("button", { name: "Move C.flac up" }));
 
@@ -87,27 +87,29 @@ describe("QueueDrawer", () => {
     expect(
       within(rows[2] as HTMLElement).getByText(/B\.flac/)
     ).toBeInTheDocument();
-    expect(document.querySelector("audio")).toHaveAttribute("src", src ?? "");
+    expect(engine.loads).toHaveLength(loadsBefore);
+    expect(engine.loads.at(-1)?.track.id).toBe("default:track-1");
     expect(
       within(rows[2] as HTMLElement).getByText("Playing now")
     ).toBeInTheDocument();
   });
 
   it("keeps the current track when an earlier entry is removed", async () => {
-    const user = await renderQueue();
+    const { user, engine } = await renderQueue();
     await user.click(screen.getByRole("button", { name: "B.flac" }));
-    const src = document.querySelector("audio")?.getAttribute("src");
+    const loadsBefore = engine.loads.length;
 
     await user.click(
       screen.getByRole("button", { name: "Remove A.flac from queue" })
     );
 
     expect(queueRows()).toHaveLength(2);
-    expect(document.querySelector("audio")).toHaveAttribute("src", src ?? "");
+    expect(engine.loads).toHaveLength(loadsBefore);
+    expect(engine.loads.at(-1)?.track.id).toBe("default:track-1");
   });
 
   it("clears the queue", async () => {
-    const user = await renderQueue();
+    const { user } = await renderQueue();
     await user.click(screen.getByRole("button", { name: "A.flac" }));
     await user.click(screen.getByRole("button", { name: "Clear" }));
 

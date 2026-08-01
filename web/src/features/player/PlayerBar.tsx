@@ -12,7 +12,16 @@ import {
 
 import { formatTime } from "~/lib/format";
 import { cn } from "~/lib/utils";
-import { usePlayer } from "./PlayerProvider";
+import {
+  selectDuration,
+  selectErrorMessage,
+  selectStatus,
+  selectVolume,
+  useEngineState,
+  usePlayerActions,
+  useQueue
+} from "./context";
+import { selectCurrent, selectHasNext, selectPath } from "~/stores/queueStore";
 import { CoverArt } from "~/components/CoverArt";
 import { Button } from "~/components/ui/button";
 import {
@@ -26,23 +35,15 @@ import { SeekBar } from "./SeekBar";
 
 /** Polls media position locally to avoid updating every context consumer. */
 export function PlayerBar({ onToggleQueue }: { onToggleQueue: () => void }) {
-  const {
-    current,
-    currentPath,
-    queue,
-    index,
-    status,
-    duration,
-    volume,
-    error,
-    toggle,
-    next,
-    previous,
-    seek,
-    setVolume,
-    getPosition,
-    getBuffered
-  } = usePlayer();
+  const current = useQueue(selectCurrent);
+  const currentPath = useQueue(selectPath);
+  const hasNext = useQueue(selectHasNext);
+  const status = useEngineState(selectStatus);
+  const duration = useEngineState(selectDuration);
+  const volume = useEngineState(selectVolume);
+  const error = useEngineState(selectErrorMessage);
+  const { toggle, next, previous, seek, setVolume, getPosition, getBuffered } =
+    usePlayerActions();
 
   const [position, setPosition] = useState(0);
   const [buffered, setBuffered] = useState(0);
@@ -58,8 +59,8 @@ export function PlayerBar({ onToggleQueue }: { onToggleQueue: () => void }) {
     return () => cancelAnimationFrame(frame);
   }, [getPosition, getBuffered]);
 
-  const hasNext = index >= 0 && index < queue.length - 1;
-  const isPlaying = status === "playing";
+  // Loading offers pause because playback will begin when the load settles.
+  const isPlaying = status === "playing" || status === "loading";
 
   const VolumeIcon = volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
