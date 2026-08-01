@@ -2,9 +2,9 @@
 
 Self-hosted music streaming that owns its whole stack: a Go server, a web player, and eventually a desktop app. No third-party client ecosystem to design around.
 
-It's early. Right now `rhythm --music ~/Music` gives you a page that lists your files and plays one when you click it. That's genuinely all of it. The real playback engine, the library index, and a UI you'd want to look at are still ahead.
+It's early. Right now `rhythm --music ~/Music` gives you a page that lists your files and plays them through Rhythm's own Web Audio engine, gaplessly. The library index and the metadata layer are still ahead.
 
-No telemetry. No analytics, no phone-home, no crash reporting, and that isn't going to change.
+No telemetry, analytics, crash reporting, or phone-home.
 
 ## Running it
 
@@ -15,17 +15,17 @@ make build
 
 Open <http://127.0.0.1:4533>.
 
-| Flag          | Default                   | What it does                                    |
-| ------------- | ------------------------- | ----------------------------------------------- |
-| `--music`     | _(required)_              | A directory to serve as your library            |
-| `--host`      | `127.0.0.1`               | Bind address                                    |
-| `--port`      | `4533`                    | Port. `0` picks a free one and logs it          |
-| `--data-dir`  | OS config dir + `/rhythm` | Where Rhythm keeps its own state                |
-| `--log-level` | `info`                    | `debug`, `info`, `warn`, `error`                |
+| Flag          | Default                   | What it does                           |
+| ------------- | ------------------------- | -------------------------------------- |
+| `--music`     | _(required)_              | A directory to serve as your library   |
+| `--host`      | `127.0.0.1`               | Bind address                           |
+| `--port`      | `4533`                    | Port. `0` picks a free one and logs it |
+| `--data-dir`  | OS config dir + `/rhythm` | Where Rhythm keeps its own state       |
+| `--log-level` | `info`                    | `debug`, `info`, `warn`, `error`       |
 
 There's no authentication yet, which is why it binds loopback by default. Don't put it on `--host 0.0.0.0` unless you trust everyone who can reach it.
 
-The data directory gets created but nothing is written to it yet. The SQLite index and caches will live there once they exist.
+The data directory currently holds the artwork cache. The SQLite library index and other persistent state will live there as they are added.
 
 ### Docker
 
@@ -41,20 +41,30 @@ The image is `scratch` plus the static binary. It runs as UID 65532 and wants yo
 
 ## What plays
 
-Files go to a plain `<audio>` element for now, so you get whatever your browser decodes natively: FLAC, MP3, AAC, Ogg/Vorbis, Opus, WAV, plus ALAC if you're on Safari.
+The server sends bytes and the client decodes them. Anything your browser decodes natively plays: FLAC, MP3, AAC, Ogg/Vorbis, Opus, WAV, plus ALAC if you're on Safari.
 
-Plenty of other formats show up in the file list without playing yet: ALAC outside Safari, DSD, WMA, and the Dolby codecs that hide behind an `.m4a` extension. Click one and the player tells you it can't decode it. They're listed anyway, because showing you half your library and pretending the rest doesn't exist is worse than admitting the gap.
+Unsupported formats—including ALAC outside Safari, DSD, WMA, and some Dolby codecs in `.m4a` containers—still appear in browse results. Decode errors distinguish unsupported formats from likely damaged native files.
+
+Clicking a track queues the whole folder from that point.
+
+### Gapless
+
+Rhythm preloads the next track and schedules it against the Web Audio clock, allowing gapless transitions without relying on JavaScript timing.
+
+Crossfade is implemented internally but has no UI setting yet.
+
+### Known limits
+
+Tracks are downloaded and decoded in full before playback, so long files start slowly and consume roughly 600 MB per hour of stereo PCM. The engine retains only the current and next tracks.
 
 ## Developing
 
-Two processes. The Go API, and Vite proxying `/api` to it.
+Run the Go API and Vite in separate terminals; Vite proxies `/api` to the server.
 
 ```sh
 cd server && go run ./cmd/rhythm --music ~/Music   # terminal 1
 cd web && pnpm install && pnpm dev                 # terminal 2, then localhost:5173
 ```
-
-The frontend uses pnpm. Not npm, not yarn.
 
 Everything CI checks, you can run locally:
 
@@ -69,13 +79,14 @@ make docker
 
 ## API
 
-Deliberately small. It'll grow.
-
 | Endpoint                      | What it returns                                 |
 | ----------------------------- | ----------------------------------------------- |
 | `GET /api/roots`              | Configured libraries and their filesystem roots |
 | `GET /api/browse?path=&root=` | One directory: subfolders and audio files       |
 | `GET /api/stream/{id}`        | File bytes, with full HTTP range support        |
+| `GET /api/art/{id}?size=`     | Cover art, resized and cached                   |
+
+Artwork is read from embedded tags, then common sidecar images. Missing artwork returns `404`; supported sizes are 64, 160, 320, and 640 pixels. Thumbnails are cached under `<data-dir>/art` and invalidated when their source files change.
 
 Responses are JSON, and the client validates every one of them against a schema before using it.
 
@@ -84,9 +95,15 @@ A file id looks like `<rootID>:<base64url(relative path)>`. Qualifying it by roo
 ## Layout
 
 ```
-server/    Go: cmd/rhythm, internal/{library,stream,api,webui}
-web/       React 19 + Vite + TypeScript, and later the desktop app's UI too
+server/          Go: cmd/rhythm, internal/{library,stream,art,api,webui}
+web/             React 19 + Vite + TypeScript
+web/src/engine/  The audio engine: plain TypeScript, no React imports
+web/src/stores/  Per-player Zustand stores backed by pure queue transitions
 ```
+
+The engine has no React dependency; queue and scheduling transitions remain pure TypeScript.
+
+Queue state lives in a per-player Zustand store, while playback state remains authoritative inside the engine.
 
 The reasoning behind these choices, and what's deliberately not built yet, is in [rhythm-build-plan.md](rhythm-build-plan.md).
 
