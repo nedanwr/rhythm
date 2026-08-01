@@ -148,7 +148,7 @@ export function PlayerBar({ onToggleQueue }: { onToggleQueue: () => void }) {
 
         <div className="flex min-w-0 items-center justify-end gap-1">
           {/* Mobile platforms use system volume controls. */}
-          <span className="flex items-center gap-1 max-md:hidden">
+          <span className="flex items-center gap-2 max-md:hidden">
             <VolumeIcon className="text-muted-foreground ml-1 size-4 shrink-0" />
             <Slider
               min={0}
@@ -156,7 +156,7 @@ export function PlayerBar({ onToggleQueue }: { onToggleQueue: () => void }) {
               step={0.01}
               value={volume}
               onValueChange={(next) => setVolume(next as number)}
-              className="h-4 w-20 shrink-0"
+              className="mt-3 h-4 w-20! shrink-0"
             >
               <SliderControl>
                 <SliderTrack>
