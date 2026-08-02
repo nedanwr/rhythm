@@ -31,17 +31,32 @@ export interface EngineError {
   readonly trackId: string | null;
 }
 
+/** Graphic EQ frequencies in Hz, shared by all engine implementations. */
+export const EQ_BAND_FREQUENCIES_HZ = [
+  31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000
+] as const;
+
+type PerElement<Shape extends readonly unknown[], Value> = {
+  readonly [Index in keyof Shape]: Value;
+};
+
+/** One gain in dB per entry of `EQ_BAND_FREQUENCIES_HZ`. */
+export type EqBandGainsDb = PerElement<typeof EQ_BAND_FREQUENCIES_HZ, number>;
+
 /** DSP settings shared by engine implementations. */
 export interface DspSettings {
   /** When true, the insert chain is removed from the signal path. */
   readonly bypass: boolean;
   /** Preamp in dB, applied only when the chain is engaged. */
   readonly preampDb: number;
+  /** Graphic EQ gains in dB, one per `EQ_BAND_FREQUENCIES_HZ` entry. */
+  readonly bandGainsDb: EqBandGainsDb;
 }
 
 export const DEFAULT_DSP: DspSettings = {
   bypass: true,
-  preampDb: 0
+  preampDb: 0,
+  bandGainsDb: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 };
 
 /** An effects insert whose input and output may be the same node. */
