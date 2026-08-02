@@ -3,7 +3,19 @@ import { describe, expect, it } from "vitest";
 import { PlaybackGraph } from "./graph";
 import { dbToGain } from "./scheduler";
 import { FakeAudioContext, FakeGainNode } from "./testing/fakeAudioContext";
-import type { Insert, InsertFactory } from "./types";
+import {
+  DEFAULT_DSP,
+  type DspSettings,
+  type EqBandGainsDb,
+  type Insert,
+  type InsertFactory
+} from "./types";
+
+function engaged(changes?: Partial<DspSettings>): DspSettings {
+  return { ...DEFAULT_DSP, bypass: false, ...changes };
+}
+
+const curve: EqBandGainsDb = [6, 4.5, 3, 0, 0, 0, -1.5, -3, -3, -6];
 
 function spyInsert(): { factory: InsertFactory; disposed: () => boolean } {
   let disposed = false;
@@ -62,7 +74,7 @@ describe("PlaybackGraph", () => {
   it("routes through preamp and every insert once engaged", () => {
     const { graph } = build();
     graph.setInserts([spyInsert().factory, spyInsert().factory]);
-    graph.setDsp({ bypass: false, preampDb: 0 });
+    graph.setDsp(engaged());
 
     // mix bus → preamp → in/out ×2 → master
     expect(signalPath(graph)).toHaveLength(7);
@@ -71,7 +83,7 @@ describe("PlaybackGraph", () => {
   it("puts master gain last, after the inserts", () => {
     const { graph } = build();
     graph.setInserts([spyInsert().factory]);
-    graph.setDsp({ bypass: false, preampDb: 0 });
+    graph.setDsp(engaged());
     graph.setVolume(0.25);
 
     const path = signalPath(graph);
@@ -82,18 +94,60 @@ describe("PlaybackGraph", () => {
   it("returns to the bypassed path when the chain is disengaged again", () => {
     const { graph } = build();
     graph.setInserts([spyInsert().factory]);
-    graph.setDsp({ bypass: false, preampDb: 0 });
+    graph.setDsp(engaged());
     // mix bus → preamp → in → out → master
     expect(signalPath(graph)).toHaveLength(5);
-    graph.setDsp({ bypass: true, preampDb: 0 });
+    graph.setDsp(DEFAULT_DSP);
     expect(signalPath(graph)).toHaveLength(2);
   });
 
   it("applies the preamp in dB", () => {
     const { graph } = build();
-    graph.setDsp({ bypass: false, preampDb: -6 });
+    graph.setDsp(engaged({ preampDb: -6 }));
     const preamp = signalPath(graph)[1]!;
     expect(preamp.gain.value).toBeCloseTo(dbToGain(-6), 6);
+  });
+
+  it("starts flat and bypassed", () => {
+    const { graph } = build();
+    expect(graph.dsp).toEqual(DEFAULT_DSP);
+    expect(graph.dsp.bandGainsDb.every((gain) => gain === 0)).toBe(true);
+  });
+
+  it("holds the band gains for the inserts that will read them", () => {
+    const { graph } = build();
+    graph.setDsp(engaged({ preampDb: -6, bandGainsDb: curve }));
+
+    expect(graph.dsp.bandGainsDb).toEqual(curve);
+    expect(graph.dsp.preampDb).toBe(-6);
+    expect(graph.dsp.bypass).toBe(false);
+    expect(signalPath(graph)).toHaveLength(3);
+  });
+
+  it("keeps band gains while bypassed, so re-engaging restores the curve", () => {
+    const { graph } = build();
+    graph.setDsp(engaged({ bandGainsDb: curve }));
+    graph.setDsp({ ...engaged({ bandGainsDb: curve }), bypass: true });
+
+    expect(signalPath(graph)).toHaveLength(2);
+    expect(graph.dsp.bandGainsDb).toEqual(curve);
+  });
+
+  it("ramps the preamp instead of reconnecting a live chain", () => {
+    const { graph } = build();
+    graph.setInserts([spyInsert().factory]);
+    graph.setDsp(engaged({ preampDb: -6 }));
+    const before = signalPath(graph);
+    const preamp = before[1]!;
+    const callsBefore = preamp.gain.calls.length;
+
+    graph.setDsp(engaged({ preampDb: -3, bandGainsDb: curve }));
+
+    expect(signalPath(graph)).toEqual(before);
+    expect(preamp.gain.calls.slice(callsBefore)).toEqual([
+      expect.objectContaining({ kind: "setTargetAtTime" })
+    ]);
+    expect(preamp.gain.value).toBeCloseTo(dbToGain(-3), 6);
   });
 
   it("disposes the inserts it replaces", () => {

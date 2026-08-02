@@ -19,7 +19,7 @@ export class PlaybackGraph {
   private readonly preamp: GainNode;
   private readonly master: GainNode;
   private inserts: Insert[] = [];
-  private dsp: DspSettings = DEFAULT_DSP;
+  private settings: DspSettings = DEFAULT_DSP;
 
   constructor(context: BaseAudioContext, destination?: AudioNode) {
     this.context = context;
@@ -36,6 +36,10 @@ export class PlaybackGraph {
     return this.mixBus;
   }
 
+  get dsp(): DspSettings {
+    return this.settings;
+  }
+
   setVolume(volume: number): void {
     const clamped = Math.min(Math.max(volume, 0), 1);
     // Ramping avoids clicks from discontinuous gain changes.
@@ -43,8 +47,20 @@ export class PlaybackGraph {
   }
 
   setDsp(settings: DspSettings): void {
-    this.dsp = settings;
-    this.rebuild();
+    const routingChanged = settings.bypass !== this.settings.bypass;
+    this.settings = settings;
+    if (routingChanged) {
+      this.rebuild();
+      return;
+    }
+    // Avoid reconnecting live nodes; ramp preamp changes to prevent glitches.
+    if (!settings.bypass) {
+      this.preamp.gain.setTargetAtTime(
+        dbToGain(settings.preampDb),
+        this.context.currentTime,
+        0.015
+      );
+    }
   }
 
   /** Replaces the insert chain, disposing whatever was there. */
@@ -63,12 +79,13 @@ export class PlaybackGraph {
     this.preamp.disconnect();
     for (const insert of this.inserts) insert.output.disconnect();
 
-    if (this.dsp.bypass) {
+    if (this.settings.bypass) {
       this.mixBus.connect(this.master);
       return;
     }
 
-    this.preamp.gain.value = dbToGain(this.dsp.preampDb);
+    // Set directly before connecting; ramping here would cause a level swell.
+    this.preamp.gain.value = dbToGain(this.settings.preampDb);
     this.mixBus.connect(this.preamp);
 
     let tail: AudioNode = this.preamp;
