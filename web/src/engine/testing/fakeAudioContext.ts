@@ -133,10 +133,15 @@ export class FakeAudioContext {
   decodeError: Error | null = null;
   decodeCalls = 0;
 
+  /** Created gain nodes, in order. */
+  readonly gains: FakeGainNode[] = [];
+
   private live = new Set<FakeBufferSource>();
 
   createGain(): GainNode {
-    return new FakeGainNode(this) as unknown as GainNode;
+    const gain = new FakeGainNode(this);
+    this.gains.push(gain);
+    return gain as unknown as GainNode;
   }
 
   createBufferSource(): AudioBufferSourceNode {

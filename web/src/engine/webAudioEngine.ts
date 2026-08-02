@@ -1,4 +1,5 @@
 import { BufferCache } from "./buffers";
+import { dspEquals, normalizeDsp } from "./dsp";
 import { PlaybackGraph } from "./graph";
 import { isAbort, LoadError, loadTrack } from "./load";
 import { equalPowerCurve, planTransition, positionAt } from "./scheduler";
@@ -166,7 +167,7 @@ export class WebAudioEngine implements RhythmEngine {
       next.volume === previous.volume &&
       next.error === previous.error &&
       next.crossfadeSeconds === previous.crossfadeSeconds &&
-      next.dsp === previous.dsp
+      dspEquals(next.dsp, previous.dsp)
     ) {
       return;
     }
@@ -560,8 +561,11 @@ export class WebAudioEngine implements RhythmEngine {
   }
 
   setDsp(settings: DspSettings): void {
-    this.dsp = settings;
-    this.graph?.setDsp(settings);
+    const next = normalizeDsp(settings);
+    // Skip graph updates and notifications for equivalent settings.
+    if (dspEquals(next, this.dsp)) return;
+    this.dsp = next;
+    this.graph?.setDsp(next);
     this.emit();
   }
 
@@ -592,6 +596,10 @@ export class WebAudioEngine implements RhythmEngine {
   /** Number of decoded buffers currently retained. */
   get decodedBufferCount(): number {
     return this.cache.size;
+  }
+
+  get graphDsp(): DspSettings | null {
+    return this.graph?.dsp ?? null;
   }
 
   private retainBuffers(): void {

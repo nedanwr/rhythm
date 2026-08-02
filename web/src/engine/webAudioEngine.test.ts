@@ -1,12 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { EQ_BAND_COUNT, EQ_BAND_LIMIT_DB } from "./dsp";
+import { dbToGain } from "./scheduler";
 import {
   fakeBuffer,
   FakeAudioContext,
   type FakeBufferSource
 } from "./testing/fakeAudioContext";
 import { WebAudioEngine } from "./webAudioEngine";
-import type { EngineTrack } from "./types";
+import {
+  DEFAULT_DSP,
+  type DspSettings,
+  type EngineTrack,
+  type EqBandGainsDb
+} from "./types";
+
+const curve: EqBandGainsDb = [6, 4.5, 3, 0, 0, 0, -1.5, -3, -3, -6];
+
+function engagedDsp(changes?: Partial<DspSettings>): DspSettings {
+  return { ...DEFAULT_DSP, bypass: false, ...changes };
+}
 
 const t1: EngineTrack = { id: "root:1", name: "01 Intro.flac", ext: "flac" };
 const t2: EngineTrack = { id: "root:2", name: "02 Groove.flac", ext: "flac" };
@@ -561,19 +574,95 @@ describe("output settings", () => {
     expect(engine.getSnapshot().volume).toBe(1);
   });
 
-  it("defaults to a bypassed DSP chain", () => {
+  it("defaults to a bypassed, flat DSP chain", () => {
     const { engine } = setup([]);
+    expect(engine.getSnapshot().dsp).toEqual(DEFAULT_DSP);
     expect(engine.getSnapshot().dsp.bypass).toBe(true);
     expect(engine.getSnapshot().dsp.preampDb).toBe(0);
+    expect(engine.getSnapshot().dsp.bandGainsDb).toHaveLength(EQ_BAND_COUNT);
   });
 
   it("carries DSP settings onto a context created later", async () => {
     const { engine } = setup([180]);
-    engine.setDsp({ bypass: false, preampDb: -3 });
+    engine.setDsp(engagedDsp({ preampDb: -3, bandGainsDb: curve }));
     engine.setVolume(0.6);
+    expect(engine.graphDsp).toBeNull();
+
     await engine.load(t1);
+
     expect(engine.getSnapshot().dsp.preampDb).toBe(-3);
+    expect(engine.getSnapshot().dsp.bandGainsDb).toEqual(curve);
     expect(engine.getSnapshot().volume).toBe(0.6);
+    expect(engine.graphDsp).toEqual(engine.getSnapshot().dsp);
+  });
+
+  it("hands new settings straight to a live graph", async () => {
+    const { engine, context } = setup([180]);
+    await engine.load(t1);
+    engine.setDsp(engagedDsp({ preampDb: -6, bandGainsDb: curve }));
+
+    expect(engine.graphDsp?.bypass).toBe(false);
+    expect(engine.graphDsp?.bandGainsDb).toEqual(curve);
+    // PlaybackGraph creates the mix bus, preamp, then master.
+    const preamp = context.gains[1]!;
+    expect(preamp.gain.value).toBeCloseTo(dbToGain(-6), 6);
+  });
+
+  it("clamps settings before they reach the graph", async () => {
+    const { engine } = setup([180]);
+    await engine.load(t1);
+    engine.setDsp(
+      engagedDsp({
+        preampDb: Number.NaN,
+        bandGainsDb: [99, -99, 0, 0, 0, 0, 0, 0, 0, 0]
+      })
+    );
+
+    const dsp = engine.getSnapshot().dsp;
+    expect(dsp.preampDb).toBe(0);
+    expect(dsp.bandGainsDb[0]).toBe(EQ_BAND_LIMIT_DB);
+    expect(dsp.bandGainsDb[1]).toBe(-EQ_BAND_LIMIT_DB);
+    expect(engine.graphDsp).toEqual(dsp);
+  });
+
+  it("keeps DSP settings across a track change", async () => {
+    const { engine } = setup([180, 200]);
+    engine.setDsp(engagedDsp({ preampDb: -3, bandGainsDb: curve }));
+    await engine.load(t1);
+    await engine.load(t2);
+
+    expect(engine.getSnapshot().dsp.bandGainsDb).toEqual(curve);
+    expect(engine.graphDsp).toEqual(engine.getSnapshot().dsp);
+  });
+
+  it("ignores settings that did not change, down to the audio graph", async () => {
+    const { engine, context } = setup([180]);
+    engine.setDsp(engagedDsp({ preampDb: -3, bandGainsDb: curve }));
+    await engine.load(t1);
+
+    const listener = vi.fn();
+    engine.subscribe(listener);
+    const preamp = context.gains[1]!;
+    const callsBefore = preamp.gain.calls.length;
+
+    engine.setDsp(engagedDsp({ preampDb: -3, bandGainsDb: [...curve] }));
+    expect(listener).not.toHaveBeenCalled();
+    expect(preamp.gain.calls).toHaveLength(callsBefore);
+
+    engine.setDsp(engagedDsp({ preampDb: -4, bandGainsDb: curve }));
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(engine.getSnapshot().dsp.preampDb).toBe(-4);
+    expect(preamp.gain.calls).toHaveLength(callsBefore + 1);
+  });
+
+  it("returns to the untouched signal path when bypassed again", async () => {
+    const { engine } = setup([180]);
+    await engine.load(t1);
+    engine.setDsp(engagedDsp({ preampDb: -6, bandGainsDb: curve }));
+    engine.setDsp({ ...engagedDsp({ bandGainsDb: curve }), bypass: true });
+
+    expect(engine.getSnapshot().dsp.bypass).toBe(true);
+    expect(engine.graphDsp?.bandGainsDb).toEqual(curve);
   });
 });
 
