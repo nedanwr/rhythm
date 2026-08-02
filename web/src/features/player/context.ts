@@ -7,7 +7,7 @@ import {
 import { useStore } from "zustand";
 
 import type { Track } from "~/api/schemas";
-import type { EngineSnapshot, RhythmEngine } from "~/engine/types";
+import type { DspSettings, EngineSnapshot, RhythmEngine } from "~/engine/types";
 import type { QueueSlice, QueueStore } from "~/stores/queueStore";
 
 /** Separate contexts let consumers subscribe only to the state they render. */
@@ -26,6 +26,7 @@ export interface PlayerActions {
   seek(seconds: number): void;
   setVolume(volume: number): void;
   setCrossfade(seconds: number): void;
+  setDsp(settings: DspSettings): void;
   playNext(track: Track): void;
   addToQueue(track: Track): void;
   removeAt(index: number): void;
@@ -89,4 +90,8 @@ export const selectVolume = (s: EngineSnapshot) => s.volume;
 export const selectErrorMessage = (s: EngineSnapshot) =>
   s.error?.message ?? null;
 export const selectCrossfadeSeconds = (s: EngineSnapshot) => s.crossfadeSeconds;
+export const selectDsp = (s: EngineSnapshot) => s.dsp;
+export const selectDspBypass = (s: EngineSnapshot) => s.dsp.bypass;
+export const selectPreampDb = (s: EngineSnapshot) => s.dsp.preampDb;
+export const selectBandGainsDb = (s: EngineSnapshot) => s.dsp.bandGainsDb;
 export const selectEngineTrackId = (s: EngineSnapshot) => s.trackId;

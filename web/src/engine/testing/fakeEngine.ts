@@ -1,3 +1,4 @@
+import { dspEquals, normalizeDsp } from "../dsp";
 import {
   DEFAULT_DSP,
   type DspSettings,
@@ -15,6 +16,8 @@ export class FakeEngine implements RhythmEngine {
   readonly loads: { track: EngineTrack; startAt: number }[] = [];
   readonly nextCalls: (EngineTrack | null)[] = [];
   readonly seeks: number[] = [];
+  /** Normalized `setDsp` calls, including no-ops. */
+  readonly dspCalls: DspSettings[] = [];
   playCalls = 0;
   pauseCalls = 0;
   stopCalls = 0;
@@ -141,7 +144,10 @@ export class FakeEngine implements RhythmEngine {
   }
 
   setDsp(dsp: DspSettings): void {
-    this.patch({ dsp });
+    const next = normalizeDsp(dsp);
+    this.dspCalls.push(next);
+    if (dspEquals(next, this.snapshot.dsp)) return;
+    this.patch({ dsp: next });
   }
 
   setInserts(factories: readonly InsertFactory[]): void {

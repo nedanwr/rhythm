@@ -116,6 +116,7 @@ function PlayerWiring({
       seek: (seconds) => engine.seek(seconds),
       setVolume: (volume) => engine.setVolume(volume),
       setCrossfade: (seconds) => engine.setCrossfade(seconds),
+      setDsp: (settings) => engine.setDsp(settings),
       playNext: (track) => state().insertNext(track),
       addToQueue: (track) => state().append(track),
       removeAt: (index) => state().removeAt(index),

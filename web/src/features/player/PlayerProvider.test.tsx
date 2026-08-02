@@ -5,6 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { Track } from "~/api/schemas";
 import { FakeEngine } from "~/engine/testing/fakeEngine";
 import {
+  DEFAULT_DSP,
+  type DspSettings,
+  type EqBandGainsDb
+} from "~/engine/types";
+import {
   selectCurrent,
   selectIndex,
   selectItems,
@@ -12,6 +17,7 @@ import {
 } from "~/stores/queueStore";
 import {
   selectCrossfadeSeconds,
+  selectDsp,
   selectErrorMessage,
   selectStatus,
   selectVolume,
@@ -31,6 +37,7 @@ const track = (n: number): Track => ({
   size: 1
 });
 const three = [track(1), track(2), track(3)];
+const curve: EqBandGainsDb = [6, 4.5, 3, 0, 0, 0, -1.5, -3, -3, -6];
 
 interface Seen {
   queue: readonly Track[];
@@ -41,6 +48,7 @@ interface Seen {
   volume: number;
   error: string | null;
   crossfadeSeconds: number;
+  dsp: DspSettings;
   actions: PlayerActions;
 }
 
@@ -56,6 +64,7 @@ function mount(engine = new FakeEngine()) {
       volume: useEngineState(selectVolume),
       error: useEngineState(selectErrorMessage),
       crossfadeSeconds: useEngineState(selectCrossfadeSeconds),
+      dsp: useEngineState(selectDsp),
       actions: usePlayerActions()
     };
     return null;
@@ -260,6 +269,38 @@ describe("crossfade", () => {
     expect(player().crossfadeSeconds).toBe(0);
     act(() => player().actions.setCrossfade(6));
     expect(player().crossfadeSeconds).toBe(6);
+  });
+});
+
+describe("DSP settings", () => {
+  it("start bypassed and flat", () => {
+    const { player } = mount();
+    expect(player().dsp).toEqual(DEFAULT_DSP);
+    expect(player().dsp.bypass).toBe(true);
+  });
+
+  it("reach the engine and come back on the snapshot", () => {
+    const { engine, player } = mount();
+    const engaged: DspSettings = {
+      bypass: false,
+      preampDb: -6,
+      bandGainsDb: curve
+    };
+
+    act(() => player().actions.setDsp(engaged));
+
+    expect(engine.dspCalls.at(-1)).toEqual(engaged);
+    expect(player().dsp.bypass).toBe(false);
+    expect(player().dsp.preampDb).toBe(-6);
+    expect(player().dsp.bandGainsDb).toEqual(curve);
+  });
+
+  it("keep a stable identity so consumers do not re-render on unrelated state", () => {
+    const { player } = mount();
+    act(() => player().actions.setDsp({ ...DEFAULT_DSP, bandGainsDb: curve }));
+    const applied = player().dsp;
+    act(() => player().actions.setVolume(0.3));
+    expect(player().dsp).toBe(applied);
   });
 });
 
