@@ -9,8 +9,8 @@ UI_ASSETS := server/internal/webui/assets
 BIN := ./rhythm
 GO_LDFLAGS := -s -w
 
-.PHONY: build web server clean test test-go test-web test-web-audio fmt fmt-check \
-	lint dev-server dev-web docker
+.PHONY: build web server clean test test-go test-web test-web-audio \
+	test-browser-deps fmt fmt-check lint dev-server dev-web docker
 
 build: web server
 
@@ -25,7 +25,8 @@ server:
 	cd server && CGO_ENABLED=0 go build -trimpath -ldflags '$(GO_LDFLAGS)' \
 		-o ../$(BIN) ./cmd/rhythm
 
-test: test-go test-web
+# Requires Chromium; install it once with `make test-browser-deps`.
+test: test-go test-web test-web-audio
 
 test-go:
 	cd server && go test ./... && go test -race ./... && go vet ./... && go mod tidy -diff
@@ -36,6 +37,10 @@ test-web:
 ## test-web-audio: run the gapless acceptance test in headless Chromium
 test-web-audio:
 	cd web && pnpm test:audio
+
+## test-browser-deps: install the Chromium build test-web-audio needs (once)
+test-browser-deps:
+	cd web && pnpm exec playwright install chromium
 
 fmt:
 	cd server && gofmt -w .

@@ -69,20 +69,23 @@ cd web && pnpm install && pnpm dev                 # terminal 2, then localhost:
 Everything CI checks, you can run locally:
 
 ```sh
-make test        # go test, -race, vet, mod tidy -diff; vitest, tsc, prettier
-make fmt         # gofmt + prettier
-make build       # build the client, embed it, compile one binary
+make test-browser-deps  # install Chromium once for the audio test
+make test               # run the full CI gate
+make fmt                # gofmt + prettier
+make build              # build the client, embed it, compile one binary
 make docker
 ```
+
+Use `make test-go`, `make test-web` or `make test-web-audio` to run one part of the test suite.
 
 ### Gapless audio acceptance test
 
 Most engine tests use a fake audio context under jsdom. The gapless acceptance test runs in headless Chromium and uses `OfflineAudioContext` to decode and schedule two adjacent WAV fixtures through `WebAudioEngine`. It then checks the rendered PCM for gaps, overlaps, discontinuities and frame misalignment.
 
+Run it separately with:
+
 ```sh
-cd web
-pnpm exec playwright install chromium   # once
-pnpm test:audio
+make test-web-audio
 ```
 
 The fixtures are generated in memory from `web/src/engine/testing/gaplessFixture.ts`; no setup is required before running the test. To write them to disk for listening or inspection:
