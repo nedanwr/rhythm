@@ -75,6 +75,24 @@ make build       # build the client, embed it, compile one binary
 make docker
 ```
 
+### Gapless audio acceptance test
+
+Most engine tests use a fake audio context under jsdom. The gapless acceptance test runs in headless Chromium and uses `OfflineAudioContext` to decode and schedule two adjacent WAV fixtures through `WebAudioEngine`. It then checks the rendered PCM for gaps, overlaps, discontinuities and frame misalignment.
+
+```sh
+cd web
+pnpm exec playwright install chromium   # once
+pnpm test:audio
+```
+
+The fixtures are generated in memory from `web/src/engine/testing/gaplessFixture.ts`; no setup is required before running the test. To write them to disk for listening or inspection:
+
+```sh
+cd web && pnpm fixtures:gapless [outDir]   # defaults to a temp directory
+```
+
+The fixtures use PCM WAV so the test can isolate scheduling behavior without encoder delay or padding. Gapless AAC/m4a is not covered.
+
 `make build` copies `web/dist` into `server/internal/webui/assets`, which is generated and git-ignored. A bare `go build` still works if you skip that step; the binary just serves a placeholder page telling you to build the client.
 
 ## API
