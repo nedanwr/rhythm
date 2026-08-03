@@ -1,0 +1,162 @@
+@import "tailwindcss";
+/* Bundled through Vite, not fetched — no font CDN, works offline. */
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Design tokens. Every colour is named here and mapped into Tailwind
+   below, so nothing reaches for a raw hex. */
+@theme inline {
+  --font-sans: "Geist Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-popover: var(--popover);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-faint: var(--faint);
+  --color-main: var(--main);
+  --color-heading: var(--heading);
+  --color-row-hover: var(--row-hover);
+  --color-raised: var(--raised);
+  --color-player: var(--player);
+  --color-player-control: var(--player-control);
+  --color-progress: var(--progress);
+  --color-buffered: var(--buffered);
+
+  --shadow-lift: 0 18px 50px rgba(0, 0, 0, 0.42);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Carried by shadcn components; Rhythm's own UI mostly uses the set
+     above. Chart and sidebar-primary tokens are left out until something
+     needs them. */
+  --color-card-foreground: var(--card-foreground);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+/* Dark only for now, but under both :root and .dark so a light theme is
+   an added block rather than a refactor. */
+:root,
+.dark {
+  color-scheme: dark;
+  --background: #11100f;
+  --foreground: #e7e3dc;
+  --card: #171614;
+  --popover: #171614;
+  --primary: #e56f45;
+  --primary-foreground: #fff;
+  --muted: #24221f;
+  --muted-foreground: #938f88;
+  --accent: #211f1c;
+  --accent-foreground: #f4f0e9;
+  --border: #2b2926;
+  --ring: #e56f45;
+  /* Red enough to not read as the warm-orange primary. */
+  --destructive: #e5484d;
+  --sidebar: #11100f;
+  --sidebar-foreground: #f4f0e9;
+  --sidebar-border: rgba(43, 41, 38, 0.8);
+  --faint: #66625d;
+  --main: #131210;
+  --heading: #f3efe8;
+  --row-hover: #191816;
+  --raised: #24211e;
+  --player: #151412;
+  --player-control: #eee9e1;
+  --progress: #36332f;
+  /* Between the track and the played fill, so the two stay distinct. */
+  --buffered: #4a4640;
+
+  /* Used by shadcn components rather than by Rhythm's own UI. */
+  --card-foreground: #e7e3dc;
+  --popover-foreground: #e7e3dc;
+  --secondary: #eee9e1;
+  --secondary-foreground: #11100f;
+  --destructive-foreground: #fff;
+  --input: #35322e;
+  --radius: 8px;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    box-sizing: border-box;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground m-0 font-sans antialiased;
+    overflow: hidden;
+  }
+
+  button,
+  input {
+    outline: none;
+  }
+
+  ::selection {
+    background: var(--primary);
+    color: white;
+  }
+
+  /* Mono + tabular so ticking digits don't shift the layout. */
+  .readout {
+    @apply text-muted-foreground font-mono text-[11px] tracking-wide;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .nav-item {
+    @apply text-muted-foreground hover:bg-accent hover:text-foreground flex h-[2.4rem] w-full items-center gap-3 rounded-md px-3 text-left text-sm transition-colors;
+  }
+
+  .nav-item.active {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  .scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar::-webkit-scrollbar-thumb {
+    border: 2px solid var(--card);
+    border-radius: 8px;
+    background: #302e2a;
+  }
+}

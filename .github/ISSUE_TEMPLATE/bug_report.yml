@@ -1,0 +1,119 @@
+name: Bug report
+description: Report a reproducible problem with Rhythm
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Rhythm. Please include enough detail for someone else to reproduce the problem.
+
+        Rhythm is alpha software with no authentication. Remove private file paths, library names, network addresses, and other sensitive information from screenshots and logs.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues for this problem.
+          required: true
+        - label: I removed private or sensitive information from this report.
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Rhythm version
+      description: Copy the version shown at the bottom of Settings.
+      placeholder: 0.1.0-alpha.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected area
+      description: Select every part of Rhythm involved in the problem.
+      multiple: true
+      options:
+        - Web player
+        - Desktop app
+        - Server
+        - Docker or deployment
+        - Library scanning or metadata
+        - Playback or audio processing
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and environment
+      description: Include the OS version and, if relevant, whether Rhythm runs directly or in a container.
+      placeholder: macOS 15.5; server running with Docker
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: Browser or desktop client
+      description: For browser issues, include the browser name and exact version.
+      placeholder: Safari 18.5, Firefox 140, or Rhythm desktop 0.1.0-alpha.1
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest reliable sequence that demonstrates the problem.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: audio
+    attributes:
+      label: Audio details
+      description: For playback problems, include the format, codec, sample rate, bit depth, channel layout, and whether EQ, normalization, gapless playback, or crossfade was enabled.
+      placeholder: FLAC, 96 kHz/24-bit stereo; EQ enabled; 5-second crossfade
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and supporting material
+      description: Paste relevant server or browser-console output, or attach screenshots or a short recording. Redact sensitive information.
+      render: shell
+
+  - type: dropdown
+    id: regression
+    attributes:
+      label: Did this work before?
+      options:
+        - Not sure
+        - No, it has never worked
+        - Yes, it worked in an earlier version
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add anything else that may help diagnose the problem.
