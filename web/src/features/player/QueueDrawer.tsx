@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type RefObject } from "react";
+import { useState, type DragEvent } from "react";
 import { GripVertical, X } from "lucide-react";
 
 import { Count } from "~/lib/format";
@@ -23,8 +23,8 @@ export function QueueDrawer({
 }: {
   open: boolean;
   onClose: () => void;
-  /** Limits the drawer to a pane instead of the viewport. */
-  container?: RefObject<HTMLElement | null>;
+  /** Limits the drawer to an element instead of the viewport. */
+  container?: HTMLElement | null;
 }) {
   const queue = useQueue(selectItems);
   const index = useQueue(selectIndex);
@@ -68,6 +68,10 @@ export function QueueDrawer({
         // This persistent side panel is a landmark, not a dialog.
         render={<aside aria-label="Queue" />}
         role="complementary"
+        // Preserve scroll state while keeping the closed panel inaccessible.
+        keepMounted
+        inert={!open}
+        aria-hidden={open ? undefined : true}
         className="w-97.5 max-w-full"
       >
         <DrawerHeader className="flex-row items-center justify-between">

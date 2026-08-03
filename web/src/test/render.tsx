@@ -15,6 +15,15 @@ import type { RhythmEngine } from "~/engine/types";
 import { FakeEngine } from "~/engine/testing/fakeEngine";
 import { routeTree } from "~/routes/router";
 
+/** Waits for router idle; portal-only renders may leave the container empty. */
+async function settle(router: { state: { status: string } }): Promise<void> {
+  await waitFor(() => {
+    if (router.state.status !== "idle") {
+      throw new Error(`router is ${router.state.status}, not idle`);
+    }
+  });
+}
+
 /** Optional engine override for component renders. */
 export interface EngineOption {
   engine?: RhythmEngine;
@@ -43,11 +52,7 @@ export async function renderApp(options?: {
       <RouterProvider router={router as never} />
     </QueryClientProvider>
   );
-  await waitFor(() => {
-    if (!result.container.firstElementChild) {
-      throw new Error("router has not rendered a route yet");
-    }
-  });
+  await settle(router);
   return { ...result, queryClient };
 }
 
@@ -102,10 +107,6 @@ export async function renderWithProviders(
       <RouterProvider router={router as never} />
     </QueryClientProvider>
   );
-  await waitFor(() => {
-    if (!result.container.firstElementChild) {
-      throw new Error("router has not rendered a route yet");
-    }
-  });
+  await settle(router);
   return { ...result, queryClient, engine };
 }

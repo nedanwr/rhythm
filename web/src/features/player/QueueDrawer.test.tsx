@@ -118,12 +118,12 @@ describe("QueueDrawer", () => {
   });
 
   it("is inert while closed", async () => {
-    const { container } = await renderWithProviders(
+    const { baseElement } = await renderWithProviders(
       <QueueDrawer open={false} onClose={() => {}} />
     );
     expect(screen.queryByRole("complementary", { name: "Queue" })).toBeNull();
 
-    const drawer = container.querySelector("aside");
+    const drawer = baseElement.querySelector("aside");
     expect(drawer).toHaveAttribute("inert");
     expect(drawer).toHaveAttribute("aria-hidden", "true");
   });

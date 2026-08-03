@@ -125,9 +125,12 @@ function DrawerContent({
   className,
   children,
   container,
+  keepMounted,
   ...props
 }: DrawerPrimitive.Popup.Props & {
   container?: DrawerPrimitive.Portal.Props["container"];
+  /** Keeps the popup mounted while Base UI marks it hidden. */
+  keepMounted?: DrawerPrimitive.Portal.Props["keepMounted"];
 }) {
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer();
   const swipeAxis =
@@ -136,7 +139,7 @@ function DrawerContent({
   const scoped = container != null;
 
   return (
-    <DrawerPortal container={container}>
+    <DrawerPortal container={container} keepMounted={keepMounted}>
       {modal === true && (
         <DrawerOverlay
           data-snap-points={hasSnapPoints ? "" : undefined}
