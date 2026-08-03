@@ -56,7 +56,7 @@ Goal: `./rhythm --music ~/Music` serves a page that lists files and plays one wh
 
 **Done when:** you browse your real library and play a FLAC in the browser. ✅
 
-## Phase 1 — A real player (1–2 weeks)
+## Phase 1 — A real player (1–2 weeks) — ✅ DONE
 
 Goal: replace `<audio>` with the Rhythm engine. This is the riskiest, most differentiating work — do it before it has anything to hide behind.
 
@@ -70,7 +70,7 @@ Goal: replace `<audio>` with the Rhythm engine. This is the riskiest, most diffe
 - Keyboard controls (space, arrows) + `MediaSession` API so OS media keys and lock-screen controls work in-browser.
 - Memory discipline: decoded PCM is huge (a 60-min FLAC ≈ 600 MB decoded). Hold at most current + next buffers; for very long tracks, chunked decode is a later refinement — cap and document for now.
 
-**Done when:** an album with a continuous mix (live album, DJ mix) plays with zero audible gaps.
+**Done when:** an album with a continuous mix (live album, DJ mix) plays with zero audible gaps. ✅
 
 ## Phase 2 — Library index & watcher (1 week)
 
