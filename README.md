@@ -22,6 +22,7 @@ Open <http://127.0.0.1:4533>.
 | `--port`      | `4533`                    | Port. `0` picks a free one and logs it |
 | `--data-dir`  | OS config dir + `/rhythm` | Where Rhythm keeps its own state       |
 | `--log-level` | `info`                    | `debug`, `info`, `warn`, `error`       |
+| `--version`   |                           | Print the version and exit             |
 
 There's no authentication yet, which is why it binds loopback by default. Don't put it on `--host 0.0.0.0` unless you trust everyone who can reach it.
 
