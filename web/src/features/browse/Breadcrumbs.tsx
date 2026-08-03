@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -38,21 +39,26 @@ export function Breadcrumbs({
           </BreadcrumbLink>
         </BreadcrumbItem>
         {crumbs.map((crumb, index) => (
-          <BreadcrumbItem key={crumb.path} className="shrink-0">
-            <BreadcrumbSeparator className="text-faint [&>svg]:size-3" />
-            {index === crumbs.length - 1 ? (
-              <BreadcrumbPage className="px-1 py-0.5">
-                {crumb.name}
-              </BreadcrumbPage>
-            ) : (
-              <BreadcrumbLink
-                className="hover:text-foreground rounded px-1 py-0.5 hover:underline"
-                render={<Link to="/browse/$" params={{ _splat: crumb.path }} />}
-              >
-                {crumb.name}
-              </BreadcrumbLink>
-            )}
-          </BreadcrumbItem>
+          // BreadcrumbSeparator renders an <li>, so it must be a sibling.
+          <Fragment key={crumb.path}>
+            <BreadcrumbSeparator className="text-faint shrink-0 [&>svg]:size-3" />
+            <BreadcrumbItem className="shrink-0">
+              {index === crumbs.length - 1 ? (
+                <BreadcrumbPage className="px-1 py-0.5">
+                  {crumb.name}
+                </BreadcrumbPage>
+              ) : (
+                <BreadcrumbLink
+                  className="hover:text-foreground rounded px-1 py-0.5 hover:underline"
+                  render={
+                    <Link to="/browse/$" params={{ _splat: crumb.path }} />
+                  }
+                >
+                  {crumb.name}
+                </BreadcrumbLink>
+              )}
+            </BreadcrumbItem>
+          </Fragment>
         ))}
       </BreadcrumbList>
     </Breadcrumb>
