@@ -29,6 +29,8 @@ The data directory currently holds the artwork cache. The SQLite library index a
 
 ### Docker
 
+Docker is currently the recommended way to host Rhythm.
+
 ```sh
 docker build --tag rhythm .
 docker run --rm -p 4533:4533 \
