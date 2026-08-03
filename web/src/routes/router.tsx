@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   createRootRoute,
@@ -53,7 +53,8 @@ function RootLayout() {
   const selectedPath = pathFromLocation(pathname);
 
   const [queueOpen, setQueueOpen] = useState(false);
-  const paneRef = useRef<HTMLDivElement>(null);
+  // State triggers a render once the drawer's portal container exists.
+  const [pane, setPane] = useState<HTMLDivElement | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Same key as the sidebar's query, so no extra request.
@@ -69,7 +70,7 @@ function RootLayout() {
         {/* Clips the off-canvas drawer; otherwise its width extends the
             document and narrow viewports scroll sideways into nothing. */}
         <div
-          ref={paneRef}
+          ref={setPane}
           className="relative flex min-h-0 flex-1 overflow-hidden"
         >
           {!sidebarCollapsed && (
@@ -121,7 +122,7 @@ function RootLayout() {
           <QueueDrawer
             open={queueOpen}
             onClose={() => setQueueOpen(false)}
-            container={paneRef}
+            container={pane}
           />
         </div>
 
