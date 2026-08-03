@@ -11,6 +11,8 @@
     "typecheck": "tsc --build --force",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:audio": "vitest run --config vitest.browser.config.ts",
+    "fixtures:gapless": "node scripts/gapless-fixtures.ts",
     "format": "prettier --write ."
   },
   "pnpm": {
@@ -46,7 +48,9 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/browser": "3.2.7",
     "jsdom": "^26.0.0",
+    "playwright": "^1.62.1",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript": "^5.7.0",
