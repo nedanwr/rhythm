@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -20,6 +21,9 @@ import (
 	"github.com/nedanwr/rhythm/server/internal/library"
 	"github.com/nedanwr/rhythm/server/internal/webui"
 )
+
+// version is replaced at build time for release binaries.
+var version = "dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -37,16 +41,26 @@ type config struct {
 }
 
 func run(args []string) error {
+	return runWithOutput(args, os.Stdout)
+}
+
+func runWithOutput(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("rhythm", flag.ContinueOnError)
 	var cfg config
+	var showVersion bool
 	fs.StringVar(&cfg.music, "music", "", "path to a music library root (required)")
 	fs.StringVar(&cfg.dataDir, "data-dir", "", "directory for Rhythm's own data (default: OS user config dir)")
 	// Loopback by default: there is no authentication yet.
 	fs.StringVar(&cfg.host, "host", "127.0.0.1", "address to bind")
 	fs.IntVar(&cfg.port, "port", 4533, "port to bind (0 picks a free port)")
 	fs.StringVar(&cfg.logLevel, "log-level", "info", "log level: debug, info, warn, error")
+	fs.BoolVar(&showVersion, "version", false, "print version and exit")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if showVersion {
+		fmt.Fprintln(stdout, "rhythm", version)
+		return nil
 	}
 
 	level, err := parseLevel(cfg.logLevel)
