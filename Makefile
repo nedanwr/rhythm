@@ -9,7 +9,8 @@ UI_ASSETS := server/internal/webui/assets
 BIN := ./rhythm
 GO_LDFLAGS := -s -w
 
-.PHONY: build web server clean test test-go test-web fmt fmt-check lint dev-server dev-web docker
+.PHONY: build web server clean test test-go test-web test-web-audio fmt fmt-check \
+	lint dev-server dev-web docker
 
 build: web server
 
@@ -31,6 +32,10 @@ test-go:
 
 test-web:
 	cd web && pnpm test && pnpm typecheck && pnpm exec prettier --check .
+
+## test-web-audio: run the gapless acceptance test in headless Chromium
+test-web-audio:
+	cd web && pnpm test:audio
 
 fmt:
 	cd server && gofmt -w .
