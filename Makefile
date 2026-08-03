@@ -7,7 +7,8 @@ SHELL := /bin/bash
 # git-ignored apart from the .gitkeep that keeps go:embed happy.
 UI_ASSETS := server/internal/webui/assets
 BIN := ./rhythm
-GO_LDFLAGS := -s -w
+VERSION ?= dev
+GO_LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: build web server clean test test-go test-web test-web-audio \
 	test-browser-deps fmt fmt-check lint dev-server dev-web docker
@@ -60,7 +61,7 @@ dev-web:
 	cd web && pnpm dev
 
 docker:
-	docker build --tag rhythm:dev .
+	docker build --build-arg VERSION=$(VERSION) --tag rhythm:dev .
 
 clean:
 	rm -f $(BIN)

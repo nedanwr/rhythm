@@ -10,13 +10,14 @@ COPY web/ ./
 RUN pnpm build
 
 FROM golang:1.25-alpine AS server
+ARG VERSION=dev
 WORKDIR /src/server
 COPY server/go.mod ./
 RUN go mod download
 COPY server/ ./
 # Staged into the embed directory, the same as `make web` does locally.
 COPY --from=web /src/web/dist/ ./internal/webui/assets/
-RUN CGO_ENABLED=0 go build -trimpath -ldflags '-s -w' -o /out/rhythm ./cmd/rhythm
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/rhythm ./cmd/rhythm
 
 FROM scratch
 COPY --from=server /out/rhythm /rhythm

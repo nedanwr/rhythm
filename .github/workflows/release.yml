@@ -16,6 +16,12 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name }}
 
+      - name: Read release version
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: echo "value=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
       - uses: docker/setup-qemu-action@v4
 
       - uses: docker/setup-buildx-action@v4
@@ -34,7 +40,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           flavor: latest=false
           tags: |
-            type=raw,value=${{ github.event.release.tag_name }}
+            type=raw,value=${{ steps.version.outputs.value }}
             type=raw,value=alpha
 
       - name: Build and publish
@@ -43,6 +49,7 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: VERSION=${{ steps.version.outputs.value }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
